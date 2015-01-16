@@ -56,10 +56,20 @@ The following configuration options can be specified in NxtMint.conf.  This file
   - units=count     
     Specifies the number of units to generate for each hash round and defaults to 1.  The hash difficulty increases as the number of units increases but the transaction fee is 1 Nxt no matter how many units are generated.  Thus you want to increase units as much as possible to reduce the cost of minting the currency but don't set it so high that you don't mint anything during a session.  The count can be specified as an integer value or as a decimal value with a maximum number of digits following the decimal point as defined for the currency.        
     
-  - threads=count       
-    Specifies the number of computation threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each process to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.
+  - cpuThreads=count       
+    Specifies the number of CPU threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each process to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.     
+    
+  - gpuIntensity=count    
+    Specifies the GPU computation intensity and defaults to 0.  You must install Aparapi (https://code.google.com/p/aparapi) and your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine the best hash rate.  Specifying too large a value will result in performance degradation and insufficient memory errors.  Start with an initial value of 10 and adjust upwards or downwards as needed.   
 	
+    
 Sample Windows shortcut:	
 
 	javaw.exe -Xmx256m -jar \Nxt\NxtMint-1.0.0.jar   
 
+
+If you are using Aparapi and OpenCL, the dynamic libraries for these products must be in the system path or in the Java library path.  The Java library path is specified using -Djava.library.path=path-name.  For example, if the libraries are installed in \Nxt\lib, the Windows shortcut would look like this:
+
+    javaw.exe -Xmx256m -Djava.library.path=\Nxt\lib -jar \Nxt\NxtMint-1.0.0.jar 
+    
+    

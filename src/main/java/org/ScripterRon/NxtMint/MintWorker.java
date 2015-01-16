@@ -18,6 +18,9 @@ import static org.ScripterRon.NxtMint.Main.log;
 
 import org.ScripterRon.NxtCore.MintingTarget;
 
+import com.amd.aparapi.Kernel;
+import com.amd.aparapi.Range;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Date;
@@ -32,6 +35,9 @@ public class MintWorker implements Runnable {
     /** Worker identifier */
     private final int workerId;
     
+    /** GPU worker */
+    private boolean gpuWorker;
+    
     /** Worker thread */
     private Thread thread;
     
@@ -41,19 +47,32 @@ public class MintWorker implements Runnable {
     /** Solution queue */
     private final ArrayBlockingQueue<Solution> solutionQueue;
     
-    /** Hash function */
-    private final HashFunction hashFunction;
+    /** CPU hash function */
+    private HashFunction hashFunction;
+    
+    /** GPU hash function */
+    private GpuFunction gpuFunction;
+    
+    /** Hash count */
+    private long hashCount;
+    
+    /** Nonce */
+    private long nonce;
     
     /**
      * Create a new worker
      * 
      * @param       workerId        Worker identifier
      * @param       solutionQueue   Hash solution queue
+     * @param       gpuWorker       TRUE if this is the GPU worker
      */
-    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue) {
+    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, boolean gpuWorker) {
         this.workerId = workerId;
         this.solutionQueue = solutionQueue;
-        this.hashFunction = HashFunction.factory(Main.currency.getAlgorithm());
+        this.gpuWorker = gpuWorker;
+        hashFunction = HashFunction.factory(Main.currency.getAlgorithm());
+        if (gpuWorker)
+            gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm());
     }
     
     /**
@@ -73,10 +92,10 @@ public class MintWorker implements Runnable {
                 //
                 MintingTarget target = workQueue.take();
                 long counter = target.getCounter()+1;
-                long nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
+                nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
                 log.debug(String.format("Worker %d starting on counter %d", workerId, counter));
                 byte[] targetBytes = target.getTarget();
-                long hashCount = 0;
+                hashCount = 0;
                 long startTime = System.currentTimeMillis();
                 long statusTime = startTime;
                 //
@@ -89,7 +108,6 @@ public class MintWorker implements Runnable {
                         log.debug(String.format("Worker %d abandoning counter %d", workerId, counter));
                         break;
                     }
-                    hashCount++;
                     nonce++;
                     ByteBuffer buffer = ByteBuffer.wrap(hashBytes);
                     buffer.order(ByteOrder.LITTLE_ENDIAN);
@@ -98,18 +116,11 @@ public class MintWorker implements Runnable {
                     buffer.putLong(Main.mintingUnits);
                     buffer.putLong(counter);
                     buffer.putLong(Main.accountId);
-                    byte[] hashDigest = hashFunction.hash(hashBytes);
-                    boolean meetsTarget = true;
-                    for (int i=hashDigest.length-1; i>=0; i--) {
-                        int byte1 = (hashDigest[i]&0xff);
-                        int byte2 = (targetBytes[i]&0xff);
-                        if (byte1 < byte2)
-                            break;
-                        if (byte1 > byte2) {
-                            meetsTarget = false;
-                            break;
-                        }
-                    }
+                    boolean meetsTarget;
+                    if (gpuWorker)
+                        meetsTarget = gpuHash(hashBytes, targetBytes);
+                    else
+                        meetsTarget = cpuHash(hashBytes, targetBytes);
                     //
                     // Return the solution if the hash meets the target
                     //
@@ -162,5 +173,52 @@ public class MintWorker implements Runnable {
         } catch (InterruptedException exc) {
             log.error("Unable to add new target to work queue", exc);
         }
+    }
+    
+    /**
+     * Hash using CPU threads
+     * 
+     * @param       hashBytes       Bytes to be hashed
+     * @param       targetBytes     Target
+     * @return                      TRUE if the hash satisfies the target
+     */
+    private boolean cpuHash(byte[] hashBytes, byte[] targetBytes) {
+        hashCount++;
+        byte[] hashDigest = hashFunction.hash(hashBytes);
+        boolean meetsTarget = true;
+        for (int i=hashDigest.length-1; i>=0; i--) {
+            int byte1 = (hashDigest[i]&0xff);
+            int byte2 = (targetBytes[i]&0xff);
+            if (byte1 < byte2)
+                break;
+            if (byte1 > byte2) {
+                meetsTarget = false;
+                break;
+            }
+        }
+        return meetsTarget;
+    }
+    
+    /**
+     * Hash using the GPU
+     * 
+     * @param       hashBytes       Bytes to be hashed
+     * @param       targetBytes     Target
+     * @return                      TRUE if the hash satisfies the target
+     */
+    private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
+        boolean meetsTarget = false;
+        gpuFunction.setInput(hashBytes, targetBytes);
+        gpuFunction.execute(Range.create(Main.gpuIntensity*1024*1024, 128));
+        if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
+            log.error("GPU execution is not available, reverting to CPU hashing");
+            gpuWorker = false;
+        } else {
+            meetsTarget = gpuFunction.isSolved();
+            hashCount += gpuFunction.getHashCount();
+            if (meetsTarget)
+                nonce = gpuFunction.getNonce();
+        }
+        return meetsTarget;
     }
 }

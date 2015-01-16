@@ -109,8 +109,11 @@ public class Main {
     /** Currency units */
     public static double currencyUnits;
     
-    /** Worker thread count */
-    public static int threadCount;
+    /** CPU worker thread count */
+    public static int cpuThreads = 1;
+    
+    /** GPU intensity */
+    public static int gpuIntensity = 0;
     
     /** Minting account identifier */
     public static long accountId;
@@ -156,6 +159,11 @@ public class Main {
             if (!dirFile.exists())
                 dirFile.mkdirs();
             //
+            // Initialize the Aparapi subsystem.  We need to do this before initializing
+            // the logger since Aparapi resets logging.
+            //
+            GpuFunction.isSupported(0);
+            //
             // Initialize the logging properties from 'logging.properties'
             //
             File logFile = new File(dataPath+fileSeparator+"logging.properties");
@@ -175,8 +183,6 @@ public class Main {
                 throw new IllegalArgumentException("Secret phrase not specified");
             if (currencyCode==null || currencyCode.length()<3 || currencyCode.length()>5)
                 throw new IllegalArgumentException("Currency code is not valid");
-            if (threadCount<1)
-                throw new IllegalArgumentException("Worker thread count is not valid");
             accountId = Utils.getAccountId(Crypto.getPublicKey(secretPhrase));
             //
             // Get the application build properties
@@ -194,8 +200,9 @@ public class Main {
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
             log.info(String.format("Application data path: %s", dataPath));
             log.info(String.format("Using Nxt node at %s:%d", nxtHost, apiPort));
-            log.info(String.format("Minting %f units of %s for account %s with %d worker threads", 
-                                   currencyUnits, currencyCode, Utils.getAccountRsId(accountId), threadCount));
+            log.info(String.format("Minting %f units of %s for account %s: %d CPU threads, %d GPU intensity", 
+                                   currencyUnits, currencyCode, Utils.getAccountRsId(accountId), 
+                                   cpuThreads, gpuIntensity));
             //
             // Open the application lock file
             //
@@ -227,6 +234,9 @@ public class Main {
                 throw new IllegalArgumentException(String.format("Currency %s is not mintable", currencyCode));
             if (!HashFunction.isSupported(currency.getAlgorithm()))
                 throw new IllegalArgumentException(String.format("Currency algorithm %d is not supported",
+                                                   currency.getAlgorithm()));
+            if (gpuIntensity>0 && !GpuFunction.isSupported(currency.getAlgorithm()))
+                throw new IllegalArgumentException(String.format("Currency algorithm %d is not supported on the GPU",
                                                    currency.getAlgorithm()));
             //
             // Get the current minting target
@@ -356,8 +366,11 @@ public class Main {
                     case "units":
                         currencyUnits = Double.valueOf(value);
                         break;
-                    case "threads":
-                        threadCount = Integer.valueOf(value);
+                    case "cputhreads":
+                        cpuThreads = Integer.valueOf(value);
+                        break;
+                    case "gpuintensity":
+                        gpuIntensity = Integer.valueOf(value);
                         break;
                     default:
                         throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));

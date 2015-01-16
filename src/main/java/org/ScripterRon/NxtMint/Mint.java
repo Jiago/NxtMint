@@ -63,10 +63,19 @@ public class Mint {
         mintThread = Thread.currentThread();
         counter = Main.mintingTarget.getCounter();
         //
-        // Start the worker threads
+        // Start the CPU worker threads
         //
-        for (int i=0; i<Main.threadCount; i++) {
-            MintWorker worker = new MintWorker(i, solutions);
+        for (int i=0; i<Main.cpuThreads; i++) {
+            MintWorker worker = new MintWorker(i, solutions, false);
+            Thread thread = new Thread(threadGroup, worker);
+            thread.start();
+            workers.add(worker);
+        }
+        //
+        // Start the GPU worker thread
+        //
+        if (Main.gpuIntensity > 0) {
+            MintWorker worker = new MintWorker(Main.cpuThreads, solutions, true);
             Thread thread = new Thread(threadGroup, worker);
             thread.start();
             workers.add(worker);
@@ -158,10 +167,8 @@ public class Mint {
             //
             // Stop the worker threads
             //
-            if (!workers.isEmpty()) {
-                for (MintWorker worker : workers)
-                    worker.shutdown();
-            }
+            for (MintWorker worker : workers)
+                worker.shutdown();
         } catch (InterruptedException exc) {
             log.error("Unable to wait for workers to terminate", exc);
         }

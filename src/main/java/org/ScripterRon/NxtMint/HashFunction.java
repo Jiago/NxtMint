@@ -16,7 +16,7 @@
 package org.ScripterRon.NxtMint;
 
 /**
- * Currency minting hash function
+ * Currency minting hash functions using the CPU
  */
 public abstract class HashFunction {
     
@@ -48,7 +48,7 @@ public abstract class HashFunction {
                 hashFunction = new HashKnv25();
                 break;
             default:
-                throw new IllegalArgumentException("Hash algorithm "+algorithm+" is not supported");
+                throw new IllegalArgumentException("CPU hash algorithm "+algorithm+" is not supported");
         }
         return hashFunction;
     }

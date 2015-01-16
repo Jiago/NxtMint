@@ -12,6 +12,7 @@
         <NxtCore.version>1.2.0</NxtCore.version>
         <slf4j.version>1.7.7</slf4j.version>
         <bcprov.version>1.51</bcprov.version>
+        <aparapi.version>2013.01.23</aparapi.version>
     </properties>
     <name>Java Nxt Mint</name>
     <url>https://github.com/ScripterRon/NxtMint</url>
@@ -148,6 +149,11 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcprov-jdk15on</artifactId>
             <version>${bcprov.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.amd</groupId>
+            <artifactId>aparapi</artifactId>
+            <version>${aparapi.version}</version>
         </dependency>
     </dependencies>
 </project>

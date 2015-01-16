@@ -35,7 +35,6 @@ public class HashKnv25 extends HashFunction {
      * Create a new KECCAK25 hash function
      */
     public HashKnv25() {
-        
     }
 
     /**
