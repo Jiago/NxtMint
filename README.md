@@ -5,7 +5,7 @@ NxtMint mints currencies defined by the Nxt Monetary System.  A single currency 
 
 The NRS node used to create the mint transactions must accept API connections.  This is done by specifying nxt.apiServerPort, nxt.apiServerHost and nxt.allowedBotHosts in nxt.properties.  The account secret phrase is not sent to the Nxt server since the mint transactions are created and signed locally.     
 
-Aparapi and OpenCL are used to mint using the GPU and are not needed if you are using just the CPU.  You will need to download Aparapi from http://code.google.com/p/aparapi and obtain OpenCL from your graphics card vendor (OpenCL may be automatically installed as part of the graphics card drive installation).  The runtime libraries (aparapi and opencl) need to be installed in either the program execution path or the Java library path.  The program execution path is specified by the PATH environment variable and the Java library path is specified on the java command line as -Djava.library.path=path-name.  In addition, Java on Windows will check the current directory for runtime libraries so you can just copy the runtime libraries to the directory containing NxtMint.jar.  The Aparapi and OpenCL libraries must match the JVM (32-bit or 64-bit) being used to run NxtMint.  For example, NVIDIA provides OpenCL.dll and OpenCL64.dll on Windows in C:\Program Files\NVIDIA Corporation\OpenCL.  Aparapi is looking for OpenCL.dll, so you need to rename OpenCL64.dll to OpenCL.dll in order to use the 64-bit JVM.   
+Aparapi and OpenCL are used to mint using the GPU and are not needed if you are using just the CPU.  You will need to download Aparapi from https://github.com/aparapi/aparapi and obtain OpenCL from your graphics card vendor (OpenCL may be automatically installed as part of the graphics card drive installation).  The runtime libraries (aparapi and opencl) need to be installed in either the program execution path or the Java library path.  The program execution path is specified by the PATH environment variable and the Java library path is specified on the java command line as -Djava.library.path=path-name.  In addition, Java on Windows will check the current directory for runtime libraries so you can just copy the runtime libraries to the directory containing NxtMint.jar.  The Aparapi and OpenCL libraries must match the JVM (32-bit or 64-bit) being used to run NxtMint.  For example, NVIDIA provides OpenCL.dll and OpenCL64.dll on Windows in C:\Program Files\NVIDIA Corporation\OpenCL.  Aparapi is looking for OpenCL.dll, so you need to rename OpenCL64.dll to OpenCL.dll in order to use the 64-bit JVM.   
 
 
 Build
@@ -16,7 +16,7 @@ I use the Netbeans IDE but any build environment with Maven and the Java compile
 Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 8 if you don't already have them.
 
   - Install the NxtCore project.    
-  - Install aparapi.jar in the local Maven repository with groupId=com.amd, artifactId=aparapi, version=2013.01.23      
+  - Install aparapi.jar in the local Maven repository with groupId=com.amd, artifactId=aparapi, version=1.0.0         
   - Create the executable: mvn clean package    
   - [Optional] Create the documentation: mvn javadoc:javadoc    
   - [Optional] Copy target/NxtMint-v.r.m.jar and lib/* to wherever you want to store the executables.    
@@ -63,7 +63,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
     Specifies the number of CPU threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each process to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.     
     
   - gpuIntensity=count    
-    Specifies the GPU computation intensity and defaults to 0.  You must install Aparapi (https://code.google.com/p/aparapi) and your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine an acceptable rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.   
+    Specifies the GPU computation intensity and defaults to 0.  You must install Aparapi (https://github.com/aparapi/aparapi and your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine an acceptable rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.   
     
   - enableGUI=true|false      
     Specifies whether or not to enable the GUI and defaults to true.  Disabling the GUI allows NxtMint to run in headless environments such as a disconnected service.      
