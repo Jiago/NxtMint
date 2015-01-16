@@ -78,6 +78,9 @@ public class Main {
 
     /** Application properties file */
     private static File propFile;
+    
+    /** Enable the GUI */
+    public static boolean enableGUI = true;
 
     /** Main application window */
     public static MainWindow mainWindow;
@@ -246,18 +249,18 @@ public class Main {
             //
             // Start the GUI
             //
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-            javax.swing.SwingUtilities.invokeLater(() -> {
-                createAndShowGUI();
-            });
+            if (enableGUI) {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                javax.swing.SwingUtilities.invokeLater(() -> createAndShowGUI());
+                while (mainWindow == null)
+                    Thread.sleep(1000);
+            }
             //
-            // Start minting after the GUI has been initialized
+            // Start minting
             //
-            while (mainWindow == null)
-                Thread.sleep(1000);
             Mint.mint();
         } catch (Exception exc) {
-            logException("Exception during program initialization", exc);
+            log.error("Exception during program initialization", exc);
         }
     }
     
@@ -319,7 +322,7 @@ public class Main {
                 properties.store(out, "NxtMint Properties");
             }
         } catch (IOException exc) {
-            Main.logException("Exception while saving application properties", exc);
+            log.error("Exception while saving application properties", exc);
         }
     }
 

@@ -135,7 +135,8 @@ public class Mint {
                                                 solution.getCounter(), solution.getNonce(), 
                                                 100000000L, 120, null, Main.secretPhrase);
                             solution.setTxId(txId);
-                            Main.mainWindow.solutionFound(solution);
+                            if (Main.mainWindow != null)
+                                Main.mainWindow.solutionFound(solution);
                             log.info(String.format("Solution for counter %d submitted", solution.getCounter()));
                         } catch (NxtException exc) {
                             log.error("Unable to submit 'currencyMint' transaction", exc);
