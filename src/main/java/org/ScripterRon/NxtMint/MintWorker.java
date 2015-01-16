@@ -19,7 +19,6 @@ import static org.ScripterRon.NxtMint.Main.log;
 import org.ScripterRon.NxtCore.MintingTarget;
 
 import com.amd.aparapi.Kernel;
-import com.amd.aparapi.Range;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -36,7 +35,13 @@ public class MintWorker implements Runnable {
     private final int workerId;
     
     /** GPU worker */
-    private boolean gpuWorker;
+    private final boolean gpuWorker;
+    
+    /** GPU disabled */
+    private boolean gpuDisabled;
+    
+    /** GPU disabled time */
+    private long gpuDisabledTime;
     
     /** Worker thread */
     private Thread thread;
@@ -107,7 +112,7 @@ public class MintWorker implements Runnable {
                         log.debug(String.format("Worker %d abandoning counter %d", workerId, counter));
                         break;
                     }
-                    if (nonce == 0 || gpuWorker)
+                    if (nonce == 0 || (gpuWorker&!gpuDisabled))
                         nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
                     else
                         nonce++;
@@ -119,7 +124,7 @@ public class MintWorker implements Runnable {
                     buffer.putLong(counter);
                     buffer.putLong(Main.accountId);
                     boolean meetsTarget;
-                    if (gpuWorker)
+                    if (gpuWorker && !gpuDisabled)
                         meetsTarget = gpuHash(hashBytes, targetBytes);
                     else
                         meetsTarget = cpuHash(hashBytes, targetBytes);
@@ -136,10 +141,17 @@ public class MintWorker implements Runnable {
                     // Print a status message every 60 seconds
                     //
                     long currentTime = System.currentTimeMillis();
-                    if (currentTime-statusTime > 60000) {
+                    if (currentTime-statusTime > 1*60*1000) {
                         long hashRate = hashCount/((currentTime-startTime)/1000)/1000;
                         log.debug(String.format("Worker %d hash rate %d KH/s", workerId, hashRate));
                         statusTime = currentTime;
+                    }
+                    //
+                    // Re-enable the GPU if we have waited 5 minuts
+                    //
+                    if (gpuDisabled && currentTime-gpuDisabledTime > 5*60*1000) {
+                        gpuDisabled = false;
+                        log.info("Enabling GPU hashing");
                     }
                 }
             }
@@ -214,8 +226,9 @@ public class MintWorker implements Runnable {
         gpuFunction.execute(Main.gpuIntensity*1024);
         if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
-            log.warn("Reverting to CPU hashing");
-            gpuWorker = false;
+            log.info("Disabling GPU hashing and reverting to CPU hashing");
+            gpuDisabled = true;
+            gpuDisabledTime = System.currentTimeMillis();
         } else {
             meetsTarget = gpuFunction.isSolved();
             hashCount += Main.gpuIntensity*1024;

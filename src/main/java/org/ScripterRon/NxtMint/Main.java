@@ -375,6 +375,14 @@ public class Main {
                     case "gpuintensity":
                         gpuIntensity = Integer.valueOf(value);
                         break;
+                    case "enablegui":
+                        if (value.equalsIgnoreCase("true"))
+                            enableGUI = true;
+                        else if (value.equalsIgnoreCase("false"))
+                            enableGUI = false;
+                        else
+                            throw new IllegalArgumentException(String.format("enableGUI must be TRUE or FALSE"));
+                        break;
                     default:
                         throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));
                 }
