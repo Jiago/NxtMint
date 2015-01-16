@@ -89,13 +89,6 @@ public abstract class GpuFunction extends Kernel {
     public abstract long getNonce();
     
     /**
-     * Return the hash count
-     * 
-     * @return                      Total number of hashes performed
-     */
-    public abstract long getHashCount();
-    
-    /**
      * Return the solution digest
      * 
      * @return                      Hash digest

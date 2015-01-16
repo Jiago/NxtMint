@@ -48,7 +48,7 @@ public class MintWorker implements Runnable {
     private final ArrayBlockingQueue<Solution> solutionQueue;
     
     /** CPU hash function */
-    private HashFunction hashFunction;
+    private final HashFunction hashFunction;
     
     /** GPU hash function */
     private GpuFunction gpuFunction;
@@ -92,7 +92,6 @@ public class MintWorker implements Runnable {
                 //
                 MintingTarget target = workQueue.take();
                 long counter = target.getCounter()+1;
-                nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
                 log.debug(String.format("Worker %d starting on counter %d", workerId, counter));
                 byte[] targetBytes = target.getTarget();
                 hashCount = 0;
@@ -108,7 +107,10 @@ public class MintWorker implements Runnable {
                         log.debug(String.format("Worker %d abandoning counter %d", workerId, counter));
                         break;
                     }
-                    nonce++;
+                    if (nonce == 0 || gpuWorker)
+                        nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
+                    else
+                        nonce++;
                     ByteBuffer buffer = ByteBuffer.wrap(hashBytes);
                     buffer.order(ByteOrder.LITTLE_ENDIAN);
                     buffer.putLong(nonce);
@@ -209,13 +211,14 @@ public class MintWorker implements Runnable {
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
         boolean meetsTarget = false;
         gpuFunction.setInput(hashBytes, targetBytes);
-        gpuFunction.execute(Range.create(Main.gpuIntensity*1024*1024, 128));
+        gpuFunction.execute(Main.gpuIntensity*1024);
         if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
-            log.error("GPU execution is not available, reverting to CPU hashing");
+            log.warn("GPU execution did not complete, probably due to GPU resource shortage");
+            log.warn("Reverting to CPU hashing");
             gpuWorker = false;
         } else {
             meetsTarget = gpuFunction.isSolved();
-            hashCount += gpuFunction.getHashCount();
+            hashCount += Main.gpuIntensity*1024;
             if (meetsTarget)
                 nonce = gpuFunction.getNonce();
         }

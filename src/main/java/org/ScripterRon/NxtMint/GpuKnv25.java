@@ -15,6 +15,8 @@
  */
 package org.ScripterRon.NxtMint;
 
+import java.util.Arrays;
+
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
  * 
@@ -61,9 +63,6 @@ public class GpuKnv25 extends GpuFunction {
     
     /** Hash digest */
     private final long[] output = new long[4];
-    
-    /** Hash count */
-    private final long[] hashCount = new long[1];
     
     /** TRUE if the target is met */
     private final boolean[] done = new boolean[1];
@@ -119,7 +118,6 @@ public class GpuKnv25 extends GpuFunction {
         // Indicate no solution found yet
         //
         done[0] = false;
-        hashCount[0] = 0;
         nonce[0] = 0;
     }
 
@@ -141,16 +139,6 @@ public class GpuKnv25 extends GpuFunction {
     @Override
     public long getNonce() {
         return nonce[0];
-    }
-    
-    /**
-     * Return the hash count
-     * 
-     * @return                      Total number of hashes performed
-     */
-    @Override
-    public long getHashCount() {
-        return hashCount[0];
     }
 
     /**
@@ -206,10 +194,7 @@ public class GpuKnv25 extends GpuFunction {
         //
         // Hash the input if we haven't found a solution yet
         //
-        if (!done[0]) {
-            hash();
-            hashCount[0]++;
-        }
+        hash();
     }
 
     /**

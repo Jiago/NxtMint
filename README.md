@@ -60,7 +60,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
     Specifies the number of CPU threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each process to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.     
     
   - gpuIntensity=count    
-    Specifies the GPU computation intensity and defaults to 0.  You must install Aparapi (https://code.google.com/p/aparapi) and your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine the best hash rate.  Specifying too large a value will result in performance degradation and insufficient memory errors.  Start with an initial value of 10 and adjust upwards or downwards as needed.   
+    Specifies the GPU computation intensity and defaults to 0.  You must install Aparapi (https://code.google.com/p/aparapi) and your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine an acceptable rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.   
 	
     
 Sample Windows shortcut:	
