@@ -142,8 +142,10 @@ public class MintWorker implements Runnable {
                     //
                     long currentTime = System.currentTimeMillis();
                     if (currentTime-statusTime > 1*60*1000) {
-                        long hashRate = hashCount/((currentTime-startTime)/1000)/1000;
-                        log.debug(String.format("Worker %d hash rate %d KH/s", workerId, hashRate));
+                        double count = (double)hashCount;
+                        double rate = count/(double)((currentTime-startTime)/1000);
+                        log.debug(String.format("Worker %d: %,.2f MHash, %,.2f MHash/s", 
+                                                workerId, count/1000000.0, rate/1000000.0));
                         statusTime = currentTime;
                     }
                     //
