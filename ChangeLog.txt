@@ -1,0 +1,10 @@
+NxtMint Change Log
+==================
+
+Version 1.1.0
+  - Add sample.logging.properties, sample.mint.bat, sample.mint.sh
+  - Add minting counter to transaction table
+  - Rebuild GPU kernel following execution failure
+
+Version 1.0.0
+  - Initial release

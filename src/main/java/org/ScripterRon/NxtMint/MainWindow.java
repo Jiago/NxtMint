@@ -38,15 +38,15 @@ public final class MainWindow extends JFrame implements ActionListener {
 
     /** Table column classes */
     private static final Class<?>[] columnClasses = {
-        Date.class, String.class, Double.class, Integer.class};
+        Date.class, String.class, Double.class, Integer.class, Integer.class};
 
     /** Table column names */
     private static final String[] columnNames = {
-        "Date", "Transaction ID", "Units", "Hashes (MH)"};
+        "Date", "Transaction ID", "Units", "Counter", "Hashes (MH)"};
 
     /** Table column types */
     private static final int[] columnTypes = {
-        SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT};
+        SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT, SizedTable.COUNT};
 
     /** Solution table model */
     private final SolutionTableModel tableModel;
@@ -180,6 +180,7 @@ public final class MainWindow extends JFrame implements ActionListener {
     public void solutionFound(Solution solution) {
         javax.swing.SwingUtilities.invokeLater(() -> {
             tableModel.solutionFound(solution);
+            javax.swing.SwingUtilities.invokeLater(() -> repaint());
         });
     }
 
@@ -397,7 +398,10 @@ public final class MainWindow extends JFrame implements ActionListener {
                 case 2:                         // Units
                     value = solution.getUnits();
                     break;
-                case 3:                         // Hash count
+                case 3:                         // Counter
+                    value = (int)solution.getCounter();
+                    break;
+                case 4:                         // Hash count
                     value = (int)(solution.getHashCount()/1000000L);
                     break;
             }
