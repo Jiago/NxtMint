@@ -1,5 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+*.sh eof=lf
 
 # Image files are binary
 *.dat binary

@@ -151,6 +151,7 @@ public class MintWorker implements Runnable {
                     //
                     if (gpuDisabled && currentTime-gpuDisabledTime > 5*60*1000) {
                         gpuDisabled = false;
+                        gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm());
                         log.info("Enabling GPU hashing");
                     }
                 }
@@ -228,6 +229,7 @@ public class MintWorker implements Runnable {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
             log.info("Disabling GPU hashing and reverting to CPU hashing");
             gpuDisabled = true;
+            gpuFunction = null;
             gpuDisabledTime = System.currentTimeMillis();
         } else {
             meetsTarget = gpuFunction.isSolved();
