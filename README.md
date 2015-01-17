@@ -1,7 +1,7 @@
 NxtMint
 =======
 
-NxtMint mints currencies defined by the Nxt Monetary System.  A single currency can be minted as specified by the NxtMint configuration file.  The minting algorithm is executing using one or more CPU threads or GPU instances.  Newly-minted coins will be added to the account specified in the configuration file.     
+NxtMint mints currencies defined by the Nxt Monetary System.  A single currency can be minted as specified by the NxtMint configuration file.  The minting algorithm is executed using one or more CPU threads or GPU instances.  Newly-minted coins will be added to the account specified in the configuration file.     
 
 The NRS node used to create the mint transactions must accept API connections.  This is done by specifying nxt.apiServerPort, nxt.apiServerHost and nxt.allowedBotHosts in nxt.properties.  The account secret phrase is not sent to the Nxt server since the mint transactions are created and signed locally.     
 
