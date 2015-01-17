@@ -5,6 +5,8 @@ Version 1.1.0
   - Add sample.logging.properties, sample.mint.bat, sample.mint.sh
   - Add minting counter to transaction table
   - Rebuild GPU kernel following execution failure
+  - Add total hash count to worker status message
+  - Check for unconfirmed transactions before submitting minting transaction
 
 Version 1.0.0
   - Initial release

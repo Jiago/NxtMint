@@ -126,24 +126,30 @@ public class Mint {
                 // this happens, we will poll the server until a new block has been generated.
                 //
                 if (!pending.isEmpty()) {
-                    ChainState chainState = Nxt.getChainState();
-                    if (chainState.getBlockCount() > submitHeight) {
-                        submitHeight = chainState.getBlockCount();
-                        Solution solution = pending.remove(0);
-                        try {
-                            long txId = Nxt.currencyMint(Main.currency.getCurrencyId(), Main.mintingUnits,
-                                                solution.getCounter(), solution.getNonce(), 
-                                                100000000L, 120, null, Main.secretPhrase);
-                            solution.setTxId(txId);
-                            if (Main.mainWindow != null)
-                                Main.mainWindow.solutionFound(solution);
-                            log.info(String.format("Solution for counter %d submitted", solution.getCounter()));
-                        } catch (NxtException exc) {
-                            log.error("Unable to submit 'currencyMint' transaction", exc);
+                    boolean submitted = false;
+                    try {
+                        ChainState chainState = Nxt.getChainState();
+                        if (chainState.getBlockCount() > submitHeight) {
+                            submitHeight = chainState.getBlockCount();
+                            List<Long> txList = Nxt.getUnconfirmedAccountTransactions(Main.accountId);
+                            if (txList.isEmpty()) {
+                                Solution solution = pending.get(0);
+                                long txId = Nxt.currencyMint(Main.currency.getCurrencyId(), Main.mintingUnits,
+                                                    solution.getCounter(), solution.getNonce(), 
+                                                    100000000L, 120, null, Main.secretPhrase);
+                                solution.setTxId(txId);
+                                if (Main.mainWindow != null)
+                                    Main.mainWindow.solutionFound(solution);
+                                log.info(String.format("Solution for counter %d submitted", solution.getCounter()));
+                                submitted = true;
+                                pending.remove(0);
+                            }
                         }
-                    } else {
-                        Thread.sleep(30000);
+                    } catch (NxtException exc) {
+                        log.error("Unable to submit 'currencyMint' transaction", exc);
                     }
+                    if (!submitted)
+                        Thread.sleep(30000);
                 }
             }
         } catch (InterruptedException exc) {
