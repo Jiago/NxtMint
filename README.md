@@ -3,7 +3,9 @@ NxtMint
 
 NxtMint mints currencies defined by the Nxt Monetary System.  A single currency can be minted as specified by the NxtMint configuration file.  The minting algorithm is executed using one or more CPU threads or GPU instances.  Newly-minted coins will be added to the account specified in the configuration file.     
 
-The NRS node used to create the mint transactions must accept API connections.  This is done by specifying nxt.apiServerPort, nxt.apiServerHost and nxt.allowedBotHosts in nxt.properties.  The account secret phrase is not sent to the Nxt server since the mint transactions are created and signed locally.     
+The NRS node used to create the mint transactions must accept API connections.  This is done by specifying nxt.apiServerPort, nxt.apiServerHost and nxt.allowedBotHosts in nxt.properties.  The account secret phrase is not sent to the Nxt server since the mint transactions are created and signed locally.  
+
+NxtMint requires the Java 8 runtime since it uses language features that are not available in earlier versions of Java.   
 
 Aparapi and OpenCL are used to mint using the GPU and are not needed if you are using just the CPU.  You will need to download Aparapi from https://github.com/aparapi/aparapi and obtain OpenCL from your graphics card vendor (OpenCL may be automatically installed as part of the graphics card drive installation).  The runtime libraries (aparapi and opencl) need to be installed in either the program execution path or the Java library path.  The program execution path is specified by the PATH environment variable and the Java library path is specified on the java command line as -Djava.library.path=path-name.  In addition, Java on Windows will check the current directory for runtime libraries so you can just copy the runtime libraries to the directory containing NxtMint.jar.  The Aparapi and OpenCL libraries must match the JVM (32-bit or 64-bit) being used to run NxtMint.  For example, NVIDIA provides OpenCL.dll and OpenCL64.dll on Windows in C:\Program Files\NVIDIA Corporation\OpenCL.  Aparapi is looking for OpenCL.dll, so you need to rename OpenCL64.dll to OpenCL.dll in order to use the 64-bit JVM.   
 
@@ -16,7 +18,9 @@ I use the Netbeans IDE but any build environment with Maven and the Java compile
 Here are the steps for a manual build.  You will need to install Maven 3 and Java SE Development Kit 8 if you don't already have them.
 
   - Install the NxtCore project.    
-  - Install aparapi.jar in the local Maven repository with groupId=com.amd, artifactId=aparapi, version=1.0.0         
+  - Install aparapi.jar in the local Maven repository:      
+      o Rename aparapi.jar to include the Aparapi version number, for example aparapi-1.0.0.jar
+      o mvn install:install-file -Dfile=aparapi-1.0.0.jar -DgroupId=com.amd -DartifactId=aparapi -Dversion=1.0.0 -Dpackaging=jar         
   - Create the executable: mvn clean package    
   - [Optional] Create the documentation: mvn javadoc:javadoc    
   - [Optional] Copy target/NxtMint-v.r.m.jar and lib/* to wherever you want to store the executables.    
