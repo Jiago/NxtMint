@@ -246,6 +246,11 @@ public class Main {
             //
             mintingUnits = (long)(currencyUnits*Math.pow(10, currency.getDecimals()));
             mintingTarget = Nxt.getMintingTarget(currency.getCurrencyId(), accountId, mintingUnits);
+            long maxUnits = (currency.getMaxSupply()-currency.getReserveSupply())/10000;
+            if (mintingUnits > maxUnits)
+                throw new IllegalArgumentException(String.format("Maximum minting units is %f for currency %s",
+                                                    (double)maxUnits*Math.pow(10, -currency.getDecimals()),
+                                                    currencyCode));
             //
             // Start the GUI
             //

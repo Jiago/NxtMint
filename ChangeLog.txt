@@ -3,10 +3,10 @@ NxtMint Change Log
 
 Version 1.1.0
   - Add sample.logging.properties, sample.mint.bat, sample.mint.sh
-  - Add minting counter to transaction table
+  - Add minting counter to transaction table in GUI
   - Rebuild GPU kernel following execution failure
   - Add total hash count to worker status message
-  - Check for unconfirmed transactions before submitting minting transaction
+  - Check for unconfirmed transactions
   - GPU support for SHA-256
 
 Version 1.0.0
