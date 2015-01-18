@@ -203,7 +203,7 @@ public class Main {
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
             log.info(String.format("Application data path: %s", dataPath));
             log.info(String.format("Using Nxt node at %s:%d", nxtHost, apiPort));
-            log.info(String.format("Minting %f units of %s for account %s: %d CPU threads, %d GPU intensity", 
+            log.info(String.format("Minting %,f units of %s for account %s: %d CPU threads, %d GPU intensity", 
                                    currencyUnits, currencyCode, Utils.getAccountRsId(accountId), 
                                    cpuThreads, gpuIntensity));
             //

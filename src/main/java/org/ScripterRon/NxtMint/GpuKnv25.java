@@ -15,8 +15,6 @@
  */
 package org.ScripterRon.NxtMint;
 
-import java.util.Arrays;
-
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
  * 
@@ -74,6 +72,17 @@ public class GpuKnv25 extends GpuFunction {
      * Create the GPU hash function
      */
     public GpuKnv25() {
+    }
+    
+    /**
+     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
+     * as the GPU intensity times the scaling factor.
+     * 
+     * @return                      Scaling factor
+     */
+    @Override
+    public int getScale() {
+        return 1024;
     }
 
     /**
@@ -194,19 +203,19 @@ public class GpuKnv25 extends GpuFunction {
         //
         // Hash the input if we haven't found a solution yet
         //
-        hash();
+        if (!done[0])
+            hash();
     }
 
     /**
      * Compute the hash
-     * 
-     * Note: Local variables must be assigned a value to force allocation while compiling
-     *       the kernel program
      */
     private void hash() {
         int i=0;
         //
-        // Set the initial state and modify the nonce by the kernel instance identifier
+        // Set the initial state and modify the nonce by the kernel instance identifier.
+        // We will modify the nonce (first 8 bytes of the input data) for each execution
+        // instance.
         //
         long state0 = input[0] + (long)getGlobalId();
         long state1 = input[1];
@@ -355,12 +364,12 @@ public class GpuKnv25 extends GpuFunction {
             }
         }
         if (isSolved) {
+            done[0] = true;
             output[0] = state0;
             output[1] = state1;
             output[2] = state2;
             output[3] = state3;
             nonce[0] = input[0] + (long)getGlobalId();
-            done[0] = true;
         }
     }
 }

@@ -37,6 +37,9 @@ public abstract class GpuFunction extends Kernel {
     public static GpuFunction factory(int algorithm) {
         GpuFunction hashFunction;
         switch (algorithm) {
+            case 2:                 // SHA256
+                hashFunction = new GpuSha256();
+                break;
             case 25:                // KECCAK25
                 hashFunction = new GpuKnv25();
                 break;
@@ -53,8 +56,16 @@ public abstract class GpuFunction extends Kernel {
      * @return                      TRUE if the algorithm is supported
      */
     public static boolean isSupported(int algorithm) {
-        return (algorithm==25);
+        return (algorithm==2 || algorithm==25);
     }
+    
+    /**
+     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
+     * as the GPU intensity times the scaling factor.
+     * 
+     * @return                      Scaling factor
+     */
+    public abstract int getScale();
 
     /**
      * Set the input data and the hash target

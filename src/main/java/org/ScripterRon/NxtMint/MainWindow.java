@@ -119,11 +119,16 @@ public final class MainWindow extends JFrame implements ActionListener {
         // and target difficulty
         //
         Box statusPane = Box.createVerticalBox();
-        statusPane.add(new JLabel("<html><b>Server: "+Main.nxtHost+":"+Main.apiPort+"</b></html>"));
-        statusPane.add(new JLabel("<html><b>Account: "+Utils.getAccountRsId(Main.accountId)+"</b></html>"));
-        statusPane.add(new JLabel("<html><b>Currency: "+Main.currencyCode+"</b></html>"));
-        statusPane.add(new JLabel("<html><b>Units: "+Main.currencyUnits+"</b></html>"));
-        statusPane.add(new JLabel("<html><b>Difficulty: "+Main.mintingTarget.getDifficulty()+"</b></html>"));
+        statusPane.add(new JLabel(String.format("<html><b>Server: %s:%d</b></html>",
+                                                Main.nxtHost, Main.apiPort)));
+        statusPane.add(new JLabel(String.format("<html><b>Account: %s</b></html>",
+                                                Utils.getAccountRsId(Main.accountId))));
+        statusPane.add(new JLabel(String.format("<html><b>Currency: %s</b></html>",
+                                                Main.currencyCode)));
+        statusPane.add(new JLabel(String.format("<html><b>Units: %,f</b></html>",
+                                                Main.currencyUnits)));
+        statusPane.add(new JLabel(String.format("<html><b>Difficulty: %,d</b></html>",
+                                                Main.mintingTarget.getDifficulty())));
         //
         // Create the solutions table
         //

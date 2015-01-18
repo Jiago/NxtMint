@@ -144,7 +144,7 @@ public class MintWorker implements Runnable {
                     if (currentTime-statusTime > 1*60*1000) {
                         double count = (double)hashCount;
                         double rate = count/(double)((currentTime-startTime)/1000);
-                        log.debug(String.format("Worker %d: %,.2f MHash, %,.2f MHash/s", 
+                        log.debug(String.format("Worker %d: %,.2f MHash, %,.4f MHash/s", 
                                                 workerId, count/1000000.0, rate/1000000.0));
                         statusTime = currentTime;
                     }
@@ -226,7 +226,7 @@ public class MintWorker implements Runnable {
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
         boolean meetsTarget = false;
         gpuFunction.setInput(hashBytes, targetBytes);
-        gpuFunction.execute(Main.gpuIntensity*1024);
+        gpuFunction.execute(Main.gpuIntensity*gpuFunction.getScale());
         if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
             log.info("Disabling GPU hashing and reverting to CPU hashing");
@@ -235,7 +235,7 @@ public class MintWorker implements Runnable {
             gpuDisabledTime = System.currentTimeMillis();
         } else {
             meetsTarget = gpuFunction.isSolved();
-            hashCount += Main.gpuIntensity*1024;
+            hashCount += (long)Main.gpuIntensity*(long)gpuFunction.getScale();
             if (meetsTarget)
                 nonce = gpuFunction.getNonce();
         }
