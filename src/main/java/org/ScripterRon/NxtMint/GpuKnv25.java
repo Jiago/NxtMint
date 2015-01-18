@@ -45,7 +45,7 @@ package org.ScripterRon.NxtMint;
 public class GpuKnv25 extends GpuFunction {
         
     /** Hash algorithm constants */
-    private final long[] constants = {
+    @Constant private final long[] constants = {
         1L, 32898L, -9223372036854742902L, -9223372034707259392L, 32907L,
         2147483649L, -9223372034707259263L, -9223372036854743031L, 138L, 136L,
         2147516425L, 2147483658L, 2147516555L, -9223372036854775669L, -9223372036854742903L,

@@ -60,8 +60,22 @@ public class Mint {
      * Start minting
      */
     public static void mint() {
+        List<Long> txList;
         mintThread = Thread.currentThread();
+        //
+        // Get the initial currency counter.  We will increment this counter for
+        // each minting transaction.  If the account has unconfirmed transactions, we
+        // need to skip the current counter since the server does not increment the counter until
+        // the transaction is confirmed in a block.
+        //
         counter = Main.mintingTarget.getCounter();
+        try {
+            txList = Nxt.getUnconfirmedAccountTransactions(Main.accountId);
+            if (!txList.isEmpty())
+                counter++;
+        } catch (NxtException exc) {
+            log.error("Unable to get unconfirmed transactions", exc);
+        }
         //
         // Start the CPU worker threads
         //
@@ -131,7 +145,7 @@ public class Mint {
                         ChainState chainState = Nxt.getChainState();
                         if (chainState.getBlockCount() > submitHeight) {
                             submitHeight = chainState.getBlockCount();
-                            List<Long> txList = Nxt.getUnconfirmedAccountTransactions(Main.accountId);
+                            txList = Nxt.getUnconfirmedAccountTransactions(Main.accountId);
                             if (txList.isEmpty()) {
                                 Solution solution = pending.get(0);
                                 long txId = Nxt.currencyMint(Main.currency.getCurrencyId(), Main.mintingUnits,
@@ -146,7 +160,7 @@ public class Mint {
                             }
                         }
                     } catch (NxtException exc) {
-                        log.error("Unable to submit 'currencyMint' transaction", exc);
+                        log.error("Unable to submit 'currencyMint' transaction, will retry later", exc);
                     }
                     if (!submitted)
                         Thread.sleep(30000);

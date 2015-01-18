@@ -79,8 +79,8 @@ public final class SizedTable extends JTable {
                     column.setCellRenderer(new StringRenderer(JLabel.CENTER));
                     value = "nnnnnnnnnnnnnnnnnnnnnnnn";
                     break;
-                case AMOUNT:                                      // 8 decimal places
-                    value = Double.valueOf("1234.12345678");
+                case AMOUNT:                                      // 10 digits
+                    value = Double.valueOf("12345.12345");
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported column type "+columnTypes[i]);

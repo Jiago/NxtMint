@@ -38,7 +38,7 @@ public final class MainWindow extends JFrame implements ActionListener {
 
     /** Table column classes */
     private static final Class<?>[] columnClasses = {
-        Date.class, String.class, Double.class, Integer.class, Integer.class};
+        Date.class, String.class, Double.class, Integer.class, Double.class};
 
     /** Table column names */
     private static final String[] columnNames = {
@@ -46,7 +46,7 @@ public final class MainWindow extends JFrame implements ActionListener {
 
     /** Table column types */
     private static final int[] columnTypes = {
-        SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT, SizedTable.COUNT};
+        SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT, SizedTable.AMOUNT};
 
     /** Solution table model */
     private final SolutionTableModel tableModel;
@@ -129,6 +129,7 @@ public final class MainWindow extends JFrame implements ActionListener {
                                                 Main.currencyUnits)));
         statusPane.add(new JLabel(String.format("<html><b>Difficulty: %,d</b></html>",
                                                 Main.mintingTarget.getDifficulty())));
+        statusPane.add(Box.createVerticalStrut(10));
         //
         // Create the solutions table
         //
@@ -140,10 +141,13 @@ public final class MainWindow extends JFrame implements ActionListener {
         //
         // Create the content pane
         //
-        JPanel contentPane = new JPanel();
-        contentPane.add(statusPane);
-        contentPane.add(Box.createVerticalStrut(100));
-        contentPane.add(scrollPane);
+        JPanel contentPane = new JPanel(new BorderLayout());
+        contentPane.setOpaque(true);
+        contentPane.setBackground(Color.WHITE);
+        contentPane.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        contentPane.add(statusPane, BorderLayout.NORTH);
+        //ntentPane.add(Box.createVerticalStrut(100));
+        contentPane.add(scrollPane, BorderLayout.CENTER);
         setContentPane(contentPane);
         //
         // Receive WindowListener events
@@ -406,8 +410,8 @@ public final class MainWindow extends JFrame implements ActionListener {
                 case 3:                         // Counter
                     value = (int)solution.getCounter();
                     break;
-                case 4:                         // Hash count
-                    value = (int)(solution.getHashCount()/1000000L);
+                case 4:                         // Hash count (MHash)
+                    value = (double)solution.getHashCount()/1000000.0;
                     break;
             }
             return value;

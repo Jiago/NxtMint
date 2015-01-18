@@ -7,6 +7,7 @@ Version 1.1.0
   - Rebuild GPU kernel following execution failure
   - Add total hash count to worker status message
   - Check for unconfirmed transactions before submitting minting transaction
+  - GPU support for SHA-256
 
 Version 1.0.0
   - Initial release
