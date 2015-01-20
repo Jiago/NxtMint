@@ -73,10 +73,9 @@ public class GpuScrypt extends GpuFunction {
     private final byte[] xBuff;
     private final int[] xBuffOff;
     private final long[] xByteCount;
-    private final byte[] digestBuf;
     private final byte[] digest;
 
-    /** Digest private save areas */
+    /** Digest save areas */
     private final int[] sDH;
     private final int[] sDX;
     private final int[] sxOff;
@@ -84,7 +83,7 @@ public class GpuScrypt extends GpuFunction {
     private final int[] sxBuffOff;
     private final long[] sxByteCount;
 
-    /** IPad digest private save areas */
+    /** IPad digest save areas */
     private final int[] ipDH;
     private final int[] ipDX;
     private final int[] ipxOff;
@@ -92,7 +91,7 @@ public class GpuScrypt extends GpuFunction {
     private final int[] ipxBuffOff;
     private final long[] ipxByteCount;
 
-    /** OPad digest private save areas */
+    /** OPad digest save areas */
     private final int[] opDH;
     private final int[] opDX;
     private final int[] opxOff;
@@ -100,16 +99,18 @@ public class GpuScrypt extends GpuFunction {
     private final int[] opxBuffOff;
     private final long[] opxByteCount;
 
-    /** HMacSha256 private data areas */
+    /** HMacSha256 data areas */
     private final byte[] inputPad;
     private final byte[] outputBuf;
     private final byte[] macDigest;
 
-    /** SCRYPT private data areas */
+    /** SCRYPT data areas */
     private final byte[] H;
     private final byte[] B;
-    private final int[] X;
     private final int[] V;
+    
+    /** SCRYPT permutation array - place in local storage for fast access */
+    private final int[] X_$local$;
 
     /** Input data */
     private final byte[] input = new byte[64];
@@ -140,10 +141,12 @@ public class GpuScrypt extends GpuFunction {
      */
     public GpuScrypt() {
         //
-        // Get the group size for this GPU
+        // Get the work group size for this GPU.  We need to limit the maximum group size
+        // to avoid allocating too much local memory (most graphics cards have 32-64 KB
+        // of local memory per compute unit).  So 256 * 32 * 4 = 32768 for the Salsa X array.
         //
         Range range = Range.create(1024);
-        localSize[0] = range.getLocalSize(0);
+        localSize[0] = Math.min(range.getLocalSize(0), 256);
         globalSize = localSize[0]*localScale;
         log.debug(String.format("SCRYPT GPU local size %d, group size %d", localSize[0], globalSize));
         //
@@ -155,7 +158,6 @@ public class GpuScrypt extends GpuFunction {
         xBuff = new byte[globalSize*4];
         xBuffOff = new int[globalSize*1];
         xByteCount = new long[globalSize*1];
-        digestBuf = new byte[globalSize*132];
         digest = new byte[globalSize*32];
 
         /** Digest private save areas */
@@ -190,7 +192,7 @@ public class GpuScrypt extends GpuFunction {
         /** SCRYPT private data areas */
         H = new byte[globalSize*32];
         B = new byte[globalSize*132];
-        X = new int[globalSize*32];
+        X_$local$ = new int[localSize[0]*32];
         V = new int[globalSize*32*1024];
     }
     
@@ -208,6 +210,10 @@ public class GpuScrypt extends GpuFunction {
     /**
      * Return the execution range for the specified execution count
      * 
+     * If the execution count exceeds the global size, we will need to make multiple
+     * execution passes where each pass executes the maximum global count.  Otherwise, 
+     * we can handle the request in a single pass.
+     * 
      * @param       count           Execution count
      * @return                      Execution range
      */
@@ -224,7 +230,7 @@ public class GpuScrypt extends GpuFunction {
     /**
      * Put data to the GPU before kernel execution.  All local data must be initialized properly
      * before calling this method.  This function is normally not needed since Aparapi
-     * will handle data transfer automatically.  But explicit control is needed
+     * will handle data transfers automatically.  But explicit control is needed
      * in cases where the kernel program uses large amounts of temporary data which does not
      * need to be transferred between CPU and GPU.
      */
@@ -248,7 +254,6 @@ public class GpuScrypt extends GpuFunction {
         get(nonce);
         get(done);
     }
-    
 
     /**
      * Set the input data and the hash target
@@ -346,6 +351,7 @@ public class GpuScrypt extends GpuFunction {
         int id = getBaseIndex(0);
         int base = id*32;
         int bBase = id*132;
+        int xBase = getLocalId(0)*32;
         int vBase = id*32*1024;
         //
         // Modify the nonce for this kernel instance
@@ -384,27 +390,28 @@ public class GpuScrypt extends GpuFunction {
             for (j=0; j<32; j++)
                 H[base+j] = macDigest[base+j];
             for (j=0; j<8; j++)
-                X[base+i*8+j] = ((int)H[base+j*4+0]&0xff) | (((int)H[base+j*4+1]&0xff)<<8) | 
+                X_$local$[xBase+i*8+j] = ((int)H[base+j*4+0]&0xff) | (((int)H[base+j*4+1]&0xff)<<8) | 
                                 (((int)H[base+j*4+2]&0xff)<<16) | (((int)H[base+j*4+3]&0xff)<< 24);
         }
         for (i=0; i<1024; i++) {
             for (j=0; j<32; j++)
-                V[vBase+i*32+j] = X[base+j];
+                V[vBase+i*32+j] = X_$local$[xBase+j];
             xorSalsa8(0, 16);
             xorSalsa8(16, 0);
         }
         for (i=0; i<1024; i++) {
-            k = (X[base+16]&1023)*32;
+            k = (X_$local$[xBase+16]&1023)*32;
             for (j=0; j<32; j++)
-                X[base+j] ^= V[vBase+k+j];
+                X_$local$[xBase+j] ^= V[vBase+k+j];
             xorSalsa8(0, 16);
             xorSalsa8(16, 0);
         }
         for (i=0; i<32; i++) {
-            B[bBase+i*4+0] = (byte) (X[base+i]);
-            B[bBase+i*4+1] = (byte) (X[base+i] >> 8);
-            B[bBase+i*4+2] = (byte) (X[base+i] >> 16);
-            B[bBase+i*4+3] = (byte) (X[base+i] >> 24);
+            int x = X_$local$[xBase+i];
+            B[bBase+i*4+0] = (byte)(x);
+            B[bBase+i*4+1] = (byte)(x >> 8);
+            B[bBase+i*4+2] = (byte)(x >> 16);
+            B[bBase+i*4+3] = (byte)(x >> 24);
         }
         B[bBase+128+3] = 1;
         updateMac(B, bBase, 132);
@@ -440,41 +447,44 @@ public class GpuScrypt extends GpuFunction {
      * @param       ixi     Second block offset
      */
     private void xorSalsa8(int idi, int ixi) {
-        int base = getBaseIndex(0)*32;
+        int base = getLocalId(0)*32;
         int di = idi+base;
         int xi = ixi+base;
-        X[di+0] ^= X[xi+0];
-        X[di+1] ^= X[xi+1];
-        X[di+2] ^= X[xi+2];
-        X[di+3] ^= X[xi+3];
-        X[di+4] ^= X[xi+4];
-        X[di+5] ^= X[xi+5];
-        X[di+6] ^= X[xi+6];
-        X[di+7] ^= X[xi+7];
-        X[di+8] ^= X[xi+8];
-        X[di+9] ^= X[xi+9];
-        X[di+10] ^= X[xi+10];
-        X[di+11] ^= X[xi+11];
-        X[di+12] ^= X[xi+12];
-        X[di+13] ^= X[xi+13];
-        X[di+14] ^= X[xi+14];
-        X[di+15] ^= X[xi+15];
-        int x00 = X[di+0];
-        int x01 = X[di+1];
-        int x02 = X[di+2];
-        int x03 = X[di+3];
-        int x04 = X[di+4];
-        int x05 = X[di+5];
-        int x06 = X[di+6];
-        int x07 = X[di+7];
-        int x08 = X[di+8];
-        int x09 = X[di+9];
-        int x10 = X[di+10];
-        int x11 = X[di+11];
-        int x12 = X[di+12];
-        int x13 = X[di+13];
-        int x14 = X[di+14];
-        int x15 = X[di+15];
+
+        int t00 = X_$local$[di+0] ^ X_$local$[xi+0];
+        int t01 = X_$local$[di+1] ^ X_$local$[xi+1];
+        int t02 = X_$local$[di+2] ^ X_$local$[xi+2];
+        int t03 = X_$local$[di+3] ^ X_$local$[xi+3];
+        int t04 = X_$local$[di+4] ^ X_$local$[xi+4];
+        int t05 = X_$local$[di+5] ^ X_$local$[xi+5];
+        int t06 = X_$local$[di+6] ^ X_$local$[xi+6];
+        int t07 = X_$local$[di+7] ^ X_$local$[xi+7];
+        int t08 = X_$local$[di+8] ^ X_$local$[xi+8];
+        int t09 = X_$local$[di+9] ^ X_$local$[xi+9];
+        int t10 = X_$local$[di+10] ^ X_$local$[xi+10];
+        int t11 = X_$local$[di+11] ^ X_$local$[xi+11];
+        int t12 = X_$local$[di+12] ^ X_$local$[xi+12];
+        int t13 = X_$local$[di+13] ^ X_$local$[xi+13];
+        int t14 = X_$local$[di+14] ^ X_$local$[xi+14];
+        int t15 = X_$local$[di+15] ^ X_$local$[xi+15];
+        
+        int x00 = t00;
+        int x01 = t01;
+        int x02 = t02;
+        int x03 = t03;
+        int x04 = t04;
+        int x05 = t05;
+        int x06 = t06;
+        int x07 = t07;
+        int x08 = t08;
+        int x09 = t09;
+        int x10 = t10;
+        int x11 = t11;
+        int x12 = t12;
+        int x13 = t13;
+        int x14 = t14;
+        int x15 = t15;
+        
         for (int i=0; i<8; i+=2) {
             int value = x00+x12;
             x04 ^= (value<<7) | (value>>>(32-7));
@@ -541,22 +551,23 @@ public class GpuScrypt extends GpuFunction {
             value = x14+x13;
             x15 ^= (value<<18) | (value>>>(32-18));
         }
-        X[di+0] += x00;
-        X[di+1] += x01;
-        X[di+2] += x02;
-        X[di+3] += x03;
-        X[di+4] += x04;
-        X[di+5] += x05;
-        X[di+6] += x06;
-        X[di+7] += x07;
-        X[di+8] += x08;
-        X[di+9] += x09;
-        X[di+10] += x10;
-        X[di+11] += x11;
-        X[di+12] += x12;
-        X[di+13] += x13;
-        X[di+14] += x14;
-        X[di+15] += x15;
+        
+        X_$local$[di+0] = t00 + x00;
+        X_$local$[di+1] = t01 + x01;
+        X_$local$[di+2] = t02 + x02;
+        X_$local$[di+3] = t03 + x03;
+        X_$local$[di+4] = t04 + x04;
+        X_$local$[di+5] = t05 + x05;
+        X_$local$[di+6] = t06 + x06;
+        X_$local$[di+7] = t07 + x07;
+        X_$local$[di+8] = t08 + x08;
+        X_$local$[di+9] = t09 + x09;
+        X_$local$[di+10] = t10 + x10;
+        X_$local$[di+11] = t11 + x11;
+        X_$local$[di+12] = t12 + x12;
+        X_$local$[di+13] = t13 + x13;
+        X_$local$[di+14] = t14 + x14;
+        X_$local$[di+15] = t15 + x15;
     }
 
     /**
