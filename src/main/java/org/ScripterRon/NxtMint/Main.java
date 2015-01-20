@@ -186,6 +186,8 @@ public class Main {
                 throw new IllegalArgumentException("Secret phrase not specified");
             if (currencyCode==null || currencyCode.length()<3 || currencyCode.length()>5)
                 throw new IllegalArgumentException("Currency code is not valid");
+            if (gpuIntensity > 1024)
+                throw new IllegalArgumentException("Maximum gpuIntensity is 1024");
             accountId = Utils.getAccountId(Crypto.getPublicKey(secretPhrase));
             //
             // Get the application build properties

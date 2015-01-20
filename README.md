@@ -78,8 +78,6 @@ Sample Windows shortcut:
 	javaw.exe -Xmx256m -jar \Nxt\NxtMint-1.0.0.jar   
 
 
-If you are using Aparapi and OpenCL, the dynamic libraries for these products must be in the system path or in the Java library path.  The Java library path is specified using -Djava.library.path=path-name.  For example, if the libraries are installed in \Nxt\lib, the Windows shortcut would look like this:
+If you are using Aparapi and OpenCL, the dynamic libraries for these products must be in PATH (Windows) or in LD_LIBRARY_PATH (Linux).  
 
-    javaw.exe -Xmx256m -Djava.library.path=\Nxt\lib -jar \Nxt\NxtMint-1.0.0.jar 
-    
     

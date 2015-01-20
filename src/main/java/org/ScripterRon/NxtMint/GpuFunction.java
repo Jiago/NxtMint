@@ -16,6 +16,7 @@
 package org.ScripterRon.NxtMint;
 
 import com.amd.aparapi.Kernel;
+import com.amd.aparapi.Range;
 
 /**
  * Currency minting hash functions using the GPU
@@ -40,6 +41,9 @@ public abstract class GpuFunction extends Kernel {
             case 2:                 // SHA256
                 hashFunction = new GpuSha256();
                 break;
+            case 5:                 // SCRYPT
+                hashFunction = new GpuScrypt();
+                break;
             case 25:                // KECCAK25
                 hashFunction = new GpuKnv25();
                 break;
@@ -56,7 +60,7 @@ public abstract class GpuFunction extends Kernel {
      * @return                      TRUE if the algorithm is supported
      */
     public static boolean isSupported(int algorithm) {
-        return (algorithm==2 || algorithm==25);
+        return (algorithm==2 || algorithm==5 || algorithm==25);
     }
     
     /**
@@ -66,6 +70,32 @@ public abstract class GpuFunction extends Kernel {
      * @return                      Scaling factor
      */
     public abstract int getScale();
+    
+    /**
+     * Return the execution range for the specified execution count
+     * 
+     * @param       count           Execution count
+     * @return                      Execution range
+     */
+    public Range getRange(int count) {
+        return Range.create(count);
+    }
+    
+    /**
+     * Put data to the GPU before kernel execution.  All local data must be initialized properly
+     * before calling this method.  This function is normally not needed since Aparapi
+     * will handle data transfer automatically.  But explicit control is needed
+     * in cases where the kernel program uses large amounts of temporary data which does not
+     * need to be transferred between CPU and GPU.
+     */
+    public void putKernelData() {
+    }
+    
+    /**
+     * Get data from the GPU after kernel execution
+     */
+    public void getKernelData() {
+    }
 
     /**
      * Set the input data and the hash target

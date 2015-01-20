@@ -1,6 +1,9 @@
 NxtMint Change Log
 ==================
 
+Version 1.2.0
+  - GPU support for SCRYPT
+  
 Version 1.1.0
   - Add sample.logging.properties, sample.mint.bat, sample.mint.sh
   - Add minting counter to transaction table in GUI

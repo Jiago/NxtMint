@@ -19,6 +19,7 @@ import static org.ScripterRon.NxtMint.Main.log;
 import org.ScripterRon.NxtCore.MintingTarget;
 
 import com.amd.aparapi.Kernel;
+import com.amd.aparapi.Range;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -225,8 +226,16 @@ public class MintWorker implements Runnable {
      */
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
         boolean meetsTarget = false;
+        int count = Main.gpuIntensity * gpuFunction.getScale();
+        Range range = gpuFunction.getRange(count);
+        int size = range.getGlobalSize(0);
         gpuFunction.setInput(hashBytes, targetBytes);
-        gpuFunction.execute(Main.gpuIntensity*gpuFunction.getScale());
+        gpuFunction.putKernelData();
+        if (size == count)
+            gpuFunction.execute(range);
+        else
+            gpuFunction.execute(range, count/size+1);
+        gpuFunction.getKernelData();
         if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
             log.info("Disabling GPU hashing and reverting to CPU hashing");
@@ -235,7 +244,7 @@ public class MintWorker implements Runnable {
             gpuDisabledTime = System.currentTimeMillis();
         } else {
             meetsTarget = gpuFunction.isSolved();
-            hashCount += (long)Main.gpuIntensity*(long)gpuFunction.getScale();
+            hashCount += (long)count;
             if (meetsTarget)
                 nonce = gpuFunction.getNonce();
         }

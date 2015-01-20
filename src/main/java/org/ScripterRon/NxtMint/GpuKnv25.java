@@ -33,19 +33,26 @@ package org.ScripterRon.NxtMint;
  *     code cannot use the 'new' operation.
  *   o Java exceptions, enhanced 'for' statements and 'break' statements are not supported.
  *   o Variable assignment during expression evaluation is not supported.
- *   o Only data belonging to the enclosing class can be copied to/from GPU memory.
+ *   o Primitive data types defined within a function must be assigned a value at the time of definition.
+ *   o Only data belonging to the enclosing Java class can be copied to/from GPU memory.
  *   o Primitives and objects can be read from kernel code but only objects can be
  *     written by kernel code.
  *   o Aparapi normally defines kernel groups based on the capabilities of the graphics card.
  *     The Range object can be used to define an explicit grouping.
- *   o Untagged data is shared by all instances of the kernel while data tagged as local is shared
- *     by all instances in the same kernel group.  Data is tagged by appending "_$local$" to
- *     the object name.
+ *   o Untagged data is shared by all instances of the kernel.
+ *   o Constant data is not fetched upon completion of kernel execution.  Constant data is
+ *     indicated by prefixing the data definition with @Constant.
+ *   o Local data is shared by all instances in the same kernel group.  Local data is indicated
+ *     by prefixing the data definition with @Local
+ *   o Private data is not shared and each kernel instance has its own copy of the data.  Private
+ *     data is indicated by prefixing the data definition with @PrivateMemorySpace(nnn) where 'nnn'
+ *     is the array dimension.  Private data cannot be passed as a function parameter since it is
+ *     in a separate address space and this information is not passed on the function call.
  */
 public class GpuKnv25 extends GpuFunction {
         
     /** Hash algorithm constants */
-    @Constant private final long[] constants = {
+    private final long[] constants = {
         1L, 32898L, -9223372036854742902L, -9223372034707259392L, 32907L,
         2147483649L, -9223372034707259263L, -9223372036854743031L, 138L, 136L,
         2147516425L, 2147483658L, 2147516555L, -9223372036854775669L, -9223372036854742903L,
