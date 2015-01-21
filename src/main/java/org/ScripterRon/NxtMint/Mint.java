@@ -80,7 +80,7 @@ public class Mint {
         // Start the CPU worker threads
         //
         for (int i=0; i<Main.cpuThreads; i++) {
-            MintWorker worker = new MintWorker(i, solutions, false);
+            MintWorker worker = new MintWorker(i, solutions, false, 0);
             Thread thread = new Thread(threadGroup, worker);
             thread.start();
             workers.add(worker);
@@ -89,10 +89,12 @@ public class Mint {
         // Start the GPU worker thread
         //
         if (Main.gpuIntensity > 0) {
-            MintWorker worker = new MintWorker(Main.cpuThreads, solutions, true);
-            Thread thread = new Thread(threadGroup, worker);
-            thread.start();
-            workers.add(worker);
+            for (Integer gpuId : Main.gpuDevices) {
+                MintWorker worker = new MintWorker(workers.size(), solutions, true, gpuId);
+                Thread thread = new Thread(threadGroup, worker);
+                thread.start();
+                workers.add(worker);
+            }
         }
         //
         // Mint coins until shutdown

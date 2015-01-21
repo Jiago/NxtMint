@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 /**
  * SHA-256 hash algorithm for Monetary System currencies
@@ -87,19 +88,20 @@ public class GpuSha256 extends GpuFunction {
 
     /**
      * Create the GPU hash function
-     */
-    public GpuSha256() {
-    }
-    
-    /**
-     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
-     * as the GPU intensity times the scaling factor.
      * 
-     * @return                      Scaling factor
+     * @param       gpuDevice       GPU device
      */
-    @Override
-    public int getScale() {
-        return 1024*1024;
+    public GpuSha256(GpuDevice gpuDevice) {
+        super(gpuDevice);
+        //
+        // Calculate the local and global sizes
+        //
+        int localSize = (gpuDevice.getCores()!=0 ? 
+                            gpuDevice.getCores()/gpuDevice.getDevice().getMaxComputeUnits() : 256);
+        int globalSize = ((Main.gpuIntensity * 1024 * 1024)/localSize)*localSize;
+        this.range = gpuDevice.getDevice().createRange(globalSize, localSize);
+        this.count = globalSize;
+        log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
     }
 
     /**
@@ -178,6 +180,13 @@ public class GpuSha256 extends GpuFunction {
     @Override
     public byte[] getDigest() {
         return output;
+    }
+    
+    /**
+     * Execute the kernel
+     */
+    public void execute() {
+        super.execute(range);
     }
 
     /**

@@ -23,29 +23,43 @@ import com.amd.aparapi.Range;
  */
 public abstract class GpuFunction extends Kernel {
     
+    /** GPU device */
+    protected GpuDevice device;
+    
+    /** Execution range */
+    protected Range range;
+    
+    /** Execution count */
+    protected int count;
+    
     /**
      * Private constructor for use by subclasses
+     * 
+     * @param       gpuDevice       The GPU device
      */
-    protected GpuFunction() {
+    protected GpuFunction(GpuDevice gpuDevice) {
+        super();
+        this.device = gpuDevice;
     }
     
     /**
      * Create a hash function for the specified algorithm
      * 
      * @param       algorithm       Hash algorithm
+     * @param       gpuDevice       GPU device
      * @return                      Hash function
      */
-    public static GpuFunction factory(int algorithm) {
+    public static GpuFunction factory(int algorithm, GpuDevice gpuDevice) {
         GpuFunction hashFunction;
         switch (algorithm) {
             case 2:                 // SHA256
-                hashFunction = new GpuSha256();
+                hashFunction = new GpuSha256(gpuDevice);
                 break;
             case 5:                 // SCRYPT
-                hashFunction = new GpuScrypt();
+                hashFunction = new GpuScrypt(gpuDevice);
                 break;
             case 25:                // KECCAK25
-                hashFunction = new GpuKnv25();
+                hashFunction = new GpuKnv25(gpuDevice);
                 break;
             default:
                 throw new IllegalArgumentException("GPU hash algorithm "+algorithm+" is not supported");
@@ -61,40 +75,6 @@ public abstract class GpuFunction extends Kernel {
      */
     public static boolean isSupported(int algorithm) {
         return (algorithm==2 || algorithm==5 || algorithm==25);
-    }
-    
-    /**
-     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
-     * as the GPU intensity times the scaling factor.
-     * 
-     * @return                      Scaling factor
-     */
-    public abstract int getScale();
-    
-    /**
-     * Return the execution range for the specified execution count
-     * 
-     * @param       count           Execution count
-     * @return                      Execution range
-     */
-    public Range getRange(int count) {
-        return Range.create(count);
-    }
-    
-    /**
-     * Put data to the GPU before kernel execution.  All local data must be initialized properly
-     * before calling this method.  This function is normally not needed since Aparapi
-     * will handle data transfer automatically.  But explicit control is needed
-     * in cases where the kernel program uses large amounts of temporary data which does not
-     * need to be transferred between CPU and GPU.
-     */
-    public void putKernelData() {
-    }
-    
-    /**
-     * Get data from the GPU after kernel execution
-     */
-    public void getKernelData() {
     }
 
     /**
@@ -135,4 +115,18 @@ public abstract class GpuFunction extends Kernel {
      * @return                      Hash digest
      */
     public abstract byte[] getDigest();
+    
+    /**
+     * Execute the kernel
+     */
+    public abstract void execute();
+    
+    /**
+     * Return the execution count
+     * 
+     * @return                      Kernel execution count
+     */
+    public int getCount() {
+        return count;
+    }
 }

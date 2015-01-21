@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
@@ -77,19 +78,20 @@ public class GpuKnv25 extends GpuFunction {
 
     /**
      * Create the GPU hash function
-     */
-    public GpuKnv25() {
-    }
-    
-    /**
-     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
-     * as the GPU intensity times the scaling factor.
      * 
-     * @return                      Scaling factor
+     * @param       gpuDevice       The GPU device
      */
-    @Override
-    public int getScale() {
-        return 1024;
+    public GpuKnv25(GpuDevice gpuDevice) {
+        super(gpuDevice);
+        //
+        // Calculate the local and global sizes
+        //
+        int localSize = (gpuDevice.getCores()!=0 ? 
+                            gpuDevice.getCores()/gpuDevice.getDevice().getMaxComputeUnits() : 256);
+        int globalSize = ((Main.gpuIntensity * 1024)/localSize)*localSize;
+        this.range = gpuDevice.getDevice().createRange(globalSize, localSize);
+        this.count = globalSize;
+        log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
     }
 
     /**
@@ -200,6 +202,13 @@ public class GpuKnv25 extends GpuFunction {
             outputBytes[31] = (byte)(output[3] >> 56);
         }
         return outputBytes;
+    }
+    
+    /**
+     * Execute the kernel
+     */
+    public void execute() {
+        super.execute(range);
     }
 
     /**

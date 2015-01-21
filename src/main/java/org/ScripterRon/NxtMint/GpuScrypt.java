@@ -16,8 +16,6 @@
 package org.ScripterRon.NxtMint;
 import static org.ScripterRon.NxtMint.Main.log;
 
-import com.amd.aparapi.Range;
-
 /**
  * SCRYPT hash algorithm for Monetary System currencies
  * 
@@ -130,25 +128,25 @@ public class GpuScrypt extends GpuFunction {
     /** Local size */
     private final int[] localSize = new int[1];
     
-    /** Local size multiplier */
-    private final int localScale = 2;
-    
     /** Global size */
     private final int globalSize;
 
     /**
      * Create the GPU hash function
+     * 
+     * @param       gpuDevice       GPU device
      */
-    public GpuScrypt() {
+    public GpuScrypt(GpuDevice gpuDevice) {
+        super(gpuDevice);
         //
-        // Get the work group size for this GPU.  We need to limit the maximum group size
-        // to avoid allocating too much local memory (most graphics cards have 32-64 KB
-        // of local memory per compute unit).  So 256 * 32 * 4 = 32768 for the Salsa X array.
+        // Calculate the local and global sizes
         //
-        Range range = Range.create(1024);
-        localSize[0] = Math.min(range.getLocalSize(0), 256);
-        globalSize = localSize[0]*localScale;
-        log.debug(String.format("SCRYPT GPU local size %d, group size %d", localSize[0], globalSize));
+        localSize[0] = (gpuDevice.getCores()!=0 ? 
+                            gpuDevice.getCores()/gpuDevice.getDevice().getMaxComputeUnits() : 256);
+        globalSize = localSize[0] * gpuDevice.getDevice().getMaxComputeUnits();
+        this.range = gpuDevice.getDevice().createRange(globalSize, localSize[0]);
+        this.count = ((Main.gpuIntensity*1024)/globalSize)*globalSize;
+        log.debug(String.format("GPU local size %d, global size %d", localSize[0], globalSize));
         //
         // Allocate storage
         //
@@ -194,65 +192,9 @@ public class GpuScrypt extends GpuFunction {
         B = new byte[globalSize*132];
         X_$local$ = new int[localSize[0]*32];
         V = new int[globalSize*32*1024];
-    }
-    
-    /**
-     * Return the GPU intensity scaling factor.  The kernel execution range is calculated
-     * as the GPU intensity times the scaling factor.
-     * 
-     * @return                      Scaling factor
-     */
-    @Override
-    public int getScale() {
-        return 1024;
-    }
-    
-    /**
-     * Return the execution range for the specified execution count
-     * 
-     * If the execution count exceeds the global size, we will need to make multiple
-     * execution passes where each pass executes the maximum global count.  Otherwise, 
-     * we can handle the request in a single pass.
-     * 
-     * @param       count           Execution count
-     * @return                      Execution range
-     */
-    @Override
-    public Range getRange(int count) {
-        Range range;
-        if (count <= globalSize)
-            range = Range.create((count/localSize[0])*localSize[0], localSize[0]);
-        else
-            range = Range.create(globalSize, localSize[0]);
-        return range;
-    }
-    
-    /**
-     * Put data to the GPU before kernel execution.  All local data must be initialized properly
-     * before calling this method.  This function is normally not needed since Aparapi
-     * will handle data transfers automatically.  But explicit control is needed
-     * in cases where the kernel program uses large amounts of temporary data which does not
-     * need to be transferred between CPU and GPU.
-     */
-    @Override
-    public void putKernelData() {
+        
+        /** We will manage data transfers */
         setExplicit(true);
-        put(localSize);
-        put(input);
-        put(target);
-        put(output);
-        put(nonce);
-        put(done);
-    }
-    
-    /**
-     * Get data from the GPU after kernel execution
-     */
-    @Override
-    public void getKernelData() {
-        get(output);
-        get(nonce);
-        get(done);
     }
 
     /**
@@ -321,6 +263,32 @@ public class GpuScrypt extends GpuFunction {
     public byte[] getDigest() {
         return output;
     }
+    
+    /**
+     * Execute the kernel
+     */
+    @Override
+    public void execute() {
+        //
+        // Transfer data to GPU memory
+        //
+        put(localSize);
+        put(input);
+        put(target);
+        put(output);
+        put(nonce);
+        put(done);
+        //
+        // Execute the kernal
+        //
+        super.execute(range, Math.max(count/globalSize, 1));
+        //
+        // Transfer data from GPU memory
+        //
+        get(output);
+        get(nonce);
+        get(done);
+    }
 
     /**
      * GPU kernel code
@@ -335,20 +303,13 @@ public class GpuScrypt extends GpuFunction {
     }
 
     /**
-     * Return the global memory base index
-     * 
-     * @return                      Global memory base index
-     */
-    private int getBaseIndex(int dim) {
-        return (getGlobalId(dim)/localSize[0])*localSize[0]+getLocalId(dim);
-    }
-
-    /**
      * Hash the input bytes
      */
     private void hash() {
+        int globalId = getGlobalId(0);
+        int localId = getLocalId(0);
+        int id = (globalId/localSize[0])*localSize[0]+localId;
         int i=0, j=0, k=0;
-        int id = getBaseIndex(0);
         int base = id*32;
         int bBase = id*132;
         int xBase = getLocalId(0)*32;
@@ -360,7 +321,7 @@ public class GpuScrypt extends GpuFunction {
                             (((long)input[2]&0xff)<<16) | (((long)input[3]&0xff)<<24) |
                             (((long)input[4]&0xff)<<32) | (((long)input[5]&0xff)<<40) |
                             (((long)input[6]&0xff)<<48) | (((long)input[7]&0xff)<<56);
-        n += (long)(getGlobalId() + getPassId()*65536);
+        n += (long)(globalId + getPassId()*65536);
         B[bBase+0] = (byte)n;
         B[bBase+1] = (byte)(n>>8);
         B[bBase+2] = (byte)(n>>16);
@@ -379,14 +340,14 @@ public class GpuScrypt extends GpuFunction {
         //
         // Initialize HmacSha256
         //
-        initMac();
+        initMac(id);
         //
         // Hash the data
         //
         for (i=0; i<4; i++) {
             B[bBase+43] = (byte)(i + 1);
-            updateMac(B, bBase, 44);
-            finishMac();
+            updateDigest(B, bBase, 44, id);
+            finishMac(id);
             for (j=0; j<32; j++)
                 H[base+j] = macDigest[base+j];
             for (j=0; j<8; j++)
@@ -396,15 +357,13 @@ public class GpuScrypt extends GpuFunction {
         for (i=0; i<1024; i++) {
             for (j=0; j<32; j++)
                 V[vBase+i*32+j] = X_$local$[xBase+j];
-            xorSalsa8(0, 16);
-            xorSalsa8(16, 0);
+            xorSalsa2(xBase);
         }
         for (i=0; i<1024; i++) {
             k = (X_$local$[xBase+16]&1023)*32;
             for (j=0; j<32; j++)
                 X_$local$[xBase+j] ^= V[vBase+k+j];
-            xorSalsa8(0, 16);
-            xorSalsa8(16, 0);
+            xorSalsa2(xBase);
         }
         for (i=0; i<32; i++) {
             int x = X_$local$[xBase+i];
@@ -414,8 +373,8 @@ public class GpuScrypt extends GpuFunction {
             B[bBase+i*4+3] = (byte)(x >> 24);
         }
         B[bBase+128+3] = 1;
-        updateMac(B, bBase, 132);
-        finishMac();
+        updateDigest(B, bBase, 132, id);
+        finishMac(id);
         //
         // Save the digest if it satisfies the target.  Note that the digest and the target
         // are treated as 32-byte unsigned numbers in little-endian format.
@@ -443,27 +402,31 @@ public class GpuScrypt extends GpuFunction {
     /**
      * Scrypt permutation
      * 
-     * @param       idi     First block offset
-     * @param       ixi     Second block offset
+     * @param       xBase           X base index
      */
-    private void xorSalsa8(int idi, int ixi) {
-        int base = getLocalId(0)*32;
-        int di = idi+base;
-        int xi = ixi+base;
-
-        int t00 = X_$local$[di+0] ^ X_$local$[xi+0];   int t01 = X_$local$[di+1] ^ X_$local$[xi+1];
-        int t02 = X_$local$[di+2] ^ X_$local$[xi+2];   int t03 = X_$local$[di+3] ^ X_$local$[xi+3];
-        int t04 = X_$local$[di+4] ^ X_$local$[xi+4];   int t05 = X_$local$[di+5] ^ X_$local$[xi+5];
-        int t06 = X_$local$[di+6] ^ X_$local$[xi+6];   int t07 = X_$local$[di+7] ^ X_$local$[xi+7];
-        int t08 = X_$local$[di+8] ^ X_$local$[xi+8];   int t09 = X_$local$[di+9] ^ X_$local$[xi+9];
-        int t10 = X_$local$[di+10] ^ X_$local$[xi+10]; int t11 = X_$local$[di+11] ^ X_$local$[xi+11];
-        int t12 = X_$local$[di+12] ^ X_$local$[xi+12]; int t13 = X_$local$[di+13] ^ X_$local$[xi+13];
-        int t14 = X_$local$[di+14] ^ X_$local$[xi+14]; int t15 = X_$local$[di+15] ^ X_$local$[xi+15];
+    private void xorSalsa2(int xBase) {
+        int di = xBase;
+        int xi = xBase + 16;
+        //
+        //  Permutate X[0]-X[15] and X[16]-X[31]
+        //
+        X_$local$[di+0] ^= X_$local$[xi+0];   X_$local$[di+1] ^= X_$local$[xi+1];  
+        X_$local$[di+2] ^= X_$local$[xi+2];   X_$local$[di+3] ^= X_$local$[xi+3];  
+        X_$local$[di+4] ^= X_$local$[xi+4];   X_$local$[di+5] ^= X_$local$[xi+5];  
+        X_$local$[di+6] ^= X_$local$[xi+6];   X_$local$[di+7] ^= X_$local$[xi+7];  
+        X_$local$[di+8] ^= X_$local$[xi+8];   X_$local$[di+9] ^= X_$local$[xi+9];
+        X_$local$[di+10] ^= X_$local$[xi+10]; X_$local$[di+11] ^= X_$local$[xi+11];  
+        X_$local$[di+12] ^= X_$local$[xi+12]; X_$local$[di+13] ^= X_$local$[xi+13];  
+        X_$local$[di+14] ^= X_$local$[xi+14]; X_$local$[di+15] ^= X_$local$[xi+15];
         
-        int x00 = t00;  int x01 = t01;  int x02 = t02;  int x03 = t03;
-        int x04 = t04;  int x05 = t05;  int x06 = t06;  int x07 = t07;
-        int x08 = t08;  int x09 = t09;  int x10 = t10;  int x11 = t11;
-        int x12 = t12;  int x13 = t13;  int x14 = t14;  int x15 = t15;
+        int x00 = X_$local$[di+0];  int x01 = X_$local$[di+1];  
+        int x02 = X_$local$[di+2];  int x03 = X_$local$[di+3];
+        int x04 = X_$local$[di+4];  int x05 = X_$local$[di+5];  
+        int x06 = X_$local$[di+6];  int x07 = X_$local$[di+7];
+        int x08 = X_$local$[di+8];  int x09 = X_$local$[di+9];  
+        int x10 = X_$local$[di+10];  int x11 = X_$local$[di+11];
+        int x12 = X_$local$[di+12];  int x13 = X_$local$[di+13];  
+        int x14 = X_$local$[di+14];  int x15 = X_$local$[di+15];
         
         for (int i=0; i<8; i+=2) {
             int value = x00+x12; x04 ^= (value<<7) | (value>>>(32-7));
@@ -500,28 +463,93 @@ public class GpuScrypt extends GpuFunction {
             value = x14+x13;  x15 ^= (value<<18) | (value>>>(32-18));
         }
         
-        X_$local$[di+0] = t00 + x00;   X_$local$[di+1] = t01 + x01;
-        X_$local$[di+2] = t02 + x02;   X_$local$[di+3] = t03 + x03;
-        X_$local$[di+4] = t04 + x04;   X_$local$[di+5] = t05 + x05;
-        X_$local$[di+6] = t06 + x06;   X_$local$[di+7] = t07 + x07;
-        X_$local$[di+8] = t08 + x08;   X_$local$[di+9] = t09 + x09;
-        X_$local$[di+10] = t10 + x10;  X_$local$[di+11] = t11 + x11;
-        X_$local$[di+12] = t12 + x12;  X_$local$[di+13] = t13 + x13;
-        X_$local$[di+14] = t14 + x14;  X_$local$[di+15] = t15 + x15;
+        X_$local$[di+0] += x00;  X_$local$[di+1] += x01;  
+        X_$local$[di+2] += x02;  X_$local$[di+3] += x03;  
+        X_$local$[di+4] += x04;  X_$local$[di+5] += x05;  
+        X_$local$[di+6] += x06;  X_$local$[di+7] += x07;  
+        X_$local$[di+8] += x08;  X_$local$[di+9] += x09;
+        X_$local$[di+10] += x10; X_$local$[di+11] += x11;  
+        X_$local$[di+12] += x12; X_$local$[di+13] += x13;  
+        X_$local$[di+14] += x14; X_$local$[di+15] += x15;
+        //
+        //  Permutate X[16]-X[31] and X[0]-X[15]
+        //        
+        X_$local$[xi+0] ^= X_$local$[di+0];   X_$local$[xi+1] ^= X_$local$[di+1];  
+        X_$local$[xi+2] ^= X_$local$[di+2];   X_$local$[xi+3] ^= X_$local$[di+3];  
+        X_$local$[xi+4] ^= X_$local$[di+4];   X_$local$[xi+5] ^= X_$local$[di+5];  
+        X_$local$[xi+6] ^= X_$local$[di+6];   X_$local$[xi+7] ^= X_$local$[di+7];  
+        X_$local$[xi+8] ^= X_$local$[di+8];   X_$local$[xi+9] ^= X_$local$[di+9];
+        X_$local$[xi+10] ^= X_$local$[di+10]; X_$local$[xi+11] ^= X_$local$[di+11];  
+        X_$local$[xi+12] ^= X_$local$[di+12]; X_$local$[xi+13] ^= X_$local$[di+13];  
+        X_$local$[xi+14] ^= X_$local$[di+14]; X_$local$[xi+15] ^= X_$local$[di+15];
+        
+        x00 = X_$local$[xi+0];  x01 = X_$local$[xi+1];  
+        x02 = X_$local$[xi+2];  x03 = X_$local$[xi+3];
+        x04 = X_$local$[xi+4];  x05 = X_$local$[xi+5];  
+        x06 = X_$local$[xi+6];  x07 = X_$local$[xi+7];
+        x08 = X_$local$[xi+8];  x09 = X_$local$[xi+9];  
+        x10 = X_$local$[xi+10]; x11 = X_$local$[xi+11];
+        x12 = X_$local$[xi+12]; x13 = X_$local$[xi+13];  
+        x14 = X_$local$[xi+14]; x15 = X_$local$[xi+15];
+        
+        for (int i=0; i<8; i+=2) {
+            int value = x00+x12; x04 ^= (value<<7) | (value>>>(32-7));
+            value = x04+x00;  x08 ^= (value<<9) | (value>>>(32-9));
+            value = x08+x04;  x12 ^= (value<<13) | (value>>>(32-13));
+            value = x12+x08;  x00 ^= (value<<18) | (value>>>(32-18));
+            value = x05+x01;  x09 ^= (value<<7) | (value>>>(32-7));
+            value = x09+x05;  x13 ^= (value<<9) | (value>>>(32-9));
+            value = x13+x09;  x01 ^= (value<<13) | (value>>>(32-13));
+            value = x01+x13;  x05 ^= (value<<18) | (value>>>(32-18));
+            value = x10+x06;  x14 ^= (value<<7) | (value>>>(32-7));
+            value = x14+x10;  x02 ^= (value<<9) | (value>>>(32-9));
+            value = x02+x14;  x06 ^= (value<<13) | (value>>>(32-13));
+            value = x06+x02;  x10 ^= (value<<18) | (value>>>(32-18));
+            value = x15+x11;  x03 ^= (value<<7) | (value>>>(32-7));
+            value = x03+x15;  x07 ^= (value<<9) | (value>>>(32-9));
+            value = x07+x03;  x11 ^= (value<<13) | (value>>>(32-13));
+            value = x11+x07;  x15 ^= (value<<18) | (value>>>(32-18));
+            value = x00+x03;  x01 ^= (value<<7) | (value>>>(32-7));
+            value = x01+x00;  x02 ^= (value<<9) | (value>>>(32-9));
+            value = x02+x01;  x03 ^= (value<<13) | (value>>>(32-13));
+            value = x03+x02;  x00 ^= (value<<18) | (value>>>(32-18));
+            value = x05+x04;  x06 ^= (value<<7) | (value>>>(32-7));
+            value = x06+x05;  x07 ^= (value<<9) | (value>>>(32-9));
+            value = x07+x06;  x04 ^= (value<<13) | (value>>>(32-13));
+            value = x04+x07;  x05 ^= (value<<18) | (value>>>(32-18));
+            value = x10+x09;  x11 ^= (value<<7) | (value>>>(32-7));
+            value = x11+x10;  x08 ^= (value<<9) | (value>>>(32-9));
+            value = x08+x11;  x09 ^= (value<<13) | (value>>>(32-13));
+            value = x09+x08;  x10 ^= (value<<18) | (value>>>(32-18));
+            value = x15+x14;  x12 ^= (value<<7) | (value>>>(32-7));
+            value = x12+x15;  x13 ^= (value<<9) | (value>>>(32-9));
+            value = x13+x12;  x14 ^= (value<<13) | (value>>>(32-13));
+            value = x14+x13;  x15 ^= (value<<18) | (value>>>(32-18));
+        }
+        
+        X_$local$[xi+0] += x00;  X_$local$[xi+1] += x01;  
+        X_$local$[xi+2] += x02;  X_$local$[xi+3] += x03;  
+        X_$local$[xi+4] += x04;  X_$local$[xi+5] += x05;  
+        X_$local$[xi+6] += x06;  X_$local$[xi+7] += x07;  
+        X_$local$[xi+8] += x08;  X_$local$[xi+9] += x09;
+        X_$local$[xi+10] += x10; X_$local$[xi+11] += x11;  
+        X_$local$[xi+12] += x12; X_$local$[xi+13] += x13;  
+        X_$local$[xi+14] += x14; X_$local$[xi+15] += x15;
     }
 
     /**
      * Initialize the MAC
+     * 
+     * @param       id              Global base identifier
      */
-    private void initMac() {
-        int id = getBaseIndex(0);
+    private void initMac(int id) {
         int bBase = id*132;
         int iBase = id*64;
         int oBase = id*96;
         //
         // Reset the SHA-256 digest
         //
-        resetDigest();
+        resetDigest(id);
         //
         // Initialize the input pad
         //
@@ -540,50 +568,40 @@ public class GpuScrypt extends GpuFunction {
         //
         // Save the output digest to improve HMac reset performance
         //
-        saveDigest();
-        updateDigest(outputBuf, oBase, 64);
-        saveOPadDigest();
-        restoreDigest();
+        saveDigest(id);
+        updateDigest(outputBuf, oBase, 64, id);
+        saveOPadDigest(id);
+        restoreDigest(id);
         //
         // Save the input digest to improve HMac reset performance
         //
-        updateDigest(inputPad, iBase, 64);
-        saveIPadDigest();
-    }
-
-    /**
-     * Update the MAC
-     * 
-     * @param       buffer          Data buffer
-     * @param       offset          Offset to the start of the data
-     * @param       length          Data length
-     */
-    private void updateMac(byte[] buffer, int offset, int length) {
-        updateDigest(buffer, offset, length);
+        updateDigest(inputPad, iBase, 64, id);
+        saveIPadDigest(id);
     }
 
     /**
      * Finish the MAC
+     * 
+     * @param       id              Global base identifier
      */
-    private void finishMac() {
-        int id = getBaseIndex(0);
+    private void finishMac(int id) {
         int base = id*32;
         int oBase = id*96;
         //
         // Finish the current digest
         //
-        finishDigest();
+        finishDigest(id);
         for (int i=0; i<32; i++)
             outputBuf[oBase+i+64] = digest[base+i];
         //
         // Hash the digest output
         //
-        restoreOPadDigest();
-        updateDigest(outputBuf, oBase+64, 32);
+        restoreOPadDigest(id);
+        updateDigest(outputBuf, oBase+64, 32, id);
         //
         // Finish the MAC digest
         //
-        finishDigest();
+        finishDigest(id);
         for (int i=0; i<32; i++)
             macDigest[base+i] = digest[base+i];
         //
@@ -594,14 +612,15 @@ public class GpuScrypt extends GpuFunction {
         //
         // Reset the MAC digest
         //
-        restoreIPadDigest();
+        restoreIPadDigest(id);
     }
 
     /**
      * Reset the SHA-256 digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void resetDigest() {
-        int id = getBaseIndex(0);
+    private void resetDigest(int id) {
         int hBase = id*8;
         int xBase = id*64;
         DH[hBase+0] = 0x6a09e667;
@@ -621,9 +640,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Save the current digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void saveDigest() {
-        int id = getBaseIndex(0);
+    private void saveDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -640,9 +660,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Restore the current digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void restoreDigest() {
-        int id = getBaseIndex(0);
+    private void restoreDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -659,9 +680,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Save the current iPad digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void saveIPadDigest() {
-        int id = getBaseIndex(0);
+    private void saveIPadDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -678,9 +700,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Restore the current iPad digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void restoreIPadDigest() {
-        int id = getBaseIndex(0);
+    private void restoreIPadDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -697,9 +720,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Save the current oPad digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void saveOPadDigest() {
-        int id = getBaseIndex(0);
+    private void saveOPadDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -716,9 +740,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Restore the current oPad digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void restoreOPadDigest() {
-        int id = getBaseIndex(0);
+    private void restoreOPadDigest(int id) {
         int bBase = id*4;
         int hBase = id*8;
         int xBase = id*64;
@@ -737,9 +762,9 @@ public class GpuScrypt extends GpuFunction {
      * Update the digest
      * 
      * @param       in              Data
+     * @param       id              Global base identifier
      */
-    private void updateDigestByte(byte in) {
-        int id = getBaseIndex(0);
+    private void updateDigestByte(byte in, int id) {
         int bBase = id*4;
         int xBase = id*64;
         xBuff[bBase+xBuffOff[id]] = in;
@@ -751,7 +776,7 @@ public class GpuScrypt extends GpuFunction {
                                 ((int)xBuff[bBase+3]&0xff);
             xOff[id]++;
             if (xOff[id] == 16)
-                processBlock();
+                processBlock(id);
             xBuffOff[id] = 0;
         }
         xByteCount[id]++;
@@ -760,23 +785,19 @@ public class GpuScrypt extends GpuFunction {
     /**
      * Update the digest
      * 
-     * Note: OpenCL fails if an array in the private address space is passed as
-     *       a parameter.  So the input data must be copied to digestBuf before
-     *       calling updateDigest.
-     * 
      * @param       buffer          Data buffer
      * @param       inOff           Buffer offset to start of data
      * @param       inLen           Data length
+     * @param       id              Global base identifier
      */
-    private void updateDigest(byte[] buffer, int inOff, int inLen) {
-        int id = getBaseIndex(0);
+    private void updateDigest(byte[] buffer, int inOff, int inLen, int id) {
         int len = inLen;
         int offset = inOff;
         //
         // Fill the current word
         //
         while (xBuffOff[id]!=0 && len>0) {
-            updateDigestByte(buffer[offset]);
+            updateDigestByte(buffer[offset], id);
             offset++;
             len--;
         }
@@ -784,7 +805,7 @@ public class GpuScrypt extends GpuFunction {
         // Process whole words.
         //
         while (len>4) {
-            processWord(buffer, offset);
+            processWord(buffer, offset, id);
             offset += 4;
             len -= 4;
             xByteCount[id] += 4;
@@ -793,7 +814,7 @@ public class GpuScrypt extends GpuFunction {
         // Load in the remainder.
         //
         while (len > 0) {
-            updateDigestByte(buffer[offset]);
+            updateDigestByte(buffer[offset], id);
             offset++;
             len--;
         }
@@ -801,9 +822,10 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Finish the digest
+     * 
+     * @param       id              Global base identifier
      */
-    private void finishDigest() {
-        int id = getBaseIndex(0);
+    private void finishDigest(int id) {
         int base = id*32;
         int hBase = id*8;
         int xBase = id*64;
@@ -814,17 +836,17 @@ public class GpuScrypt extends GpuFunction {
         // The first byte is 0x80 followed by 0x00.  The last two bytes
         // contain the data length in bits
         //
-        updateDigestByte((byte)128);
+        updateDigestByte((byte)128, id);
         while (xBuffOff[id] != 0)
-            updateDigestByte((byte)0);
+            updateDigestByte((byte)0, id);
         if (xOff[id] > 14)
-            processBlock();
+            processBlock(id);
         DX[xBase+14] = (int)(bitLength >>> 32);
         DX[xBase+15] = (int)(bitLength & 0xffffffff);
         //
         // Process the last block
         //
-        processBlock();
+        processBlock(id);
         //
         // Convert the digest to bytes in big-endian format
         //
@@ -837,21 +859,17 @@ public class GpuScrypt extends GpuFunction {
         //
         // Reset the digest
         //
-        resetDigest();
+        resetDigest(id);
     }
 
     /**
      * Process a word (4 bytes)
      * 
-     * Note: OpenCL fails if an array in the private address space is passed as
-     *       a parameter.  So the input data must be copied to digestBuf before
-     *       calling processWord.
-     * 
      * @param       buffer          Data buffer
      * @param       inOff           Buffer offset to start of word 
+     * @param       id              Global base identifier
      */
-    private void processWord(byte[] buffer, int inOff) {
-        int id = getBaseIndex(0);
+    private void processWord(byte[] buffer, int inOff, int id) {
         int xBase = id*64;
         DX[xBase+xOff[id]] = (((int)buffer[inOff]&0xff) << 24) |
                       (((int)buffer[inOff+1]&0xff) << 16) |
@@ -859,14 +877,15 @@ public class GpuScrypt extends GpuFunction {
                       ((int)buffer[inOff+3]&0xff);
         xOff[id]++;
         if (xOff[id] == 16)
-            processBlock();
+            processBlock(id);
     }
 
     /**
      * Process a 16-word block
+     * 
+     * @param       id              Global base identifier
      */
-    private void processBlock() {
-        int id = getBaseIndex(0);
+    private void processBlock(int id) {
         int hBase = id*8;
         int xBase = id*64;
         for (int t=16; t<64; t++) {

@@ -38,6 +38,9 @@ public class MintWorker implements Runnable {
     /** GPU worker */
     private final boolean gpuWorker;
     
+    /** GPU identifier */
+    private int gpuId;
+    
     /** GPU disabled */
     private boolean gpuDisabled;
     
@@ -72,13 +75,16 @@ public class MintWorker implements Runnable {
      * @param       solutionQueue   Hash solution queue
      * @param       gpuWorker       TRUE if this is the GPU worker
      */
-    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, boolean gpuWorker) {
+    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, 
+                                    boolean gpuWorker, int gpuId) {
         this.workerId = workerId;
         this.solutionQueue = solutionQueue;
         this.gpuWorker = gpuWorker;
         hashFunction = HashFunction.factory(Main.currency.getAlgorithm());
-        if (gpuWorker)
-            gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm());
+        if (gpuWorker) {
+            gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm(), Main.gpuDeviceList.get(gpuId));
+            this.gpuId = gpuId;
+        }
     }
     
     /**
@@ -88,6 +94,10 @@ public class MintWorker implements Runnable {
     public void run() {
         byte[] hashBytes = new byte[40];
         thread = Thread.currentThread();
+        if (gpuWorker)
+            log.info(String.format("GPU worker %d starting on GPU %d", workerId, gpuId));
+        else
+            log.info(String.format("CPU worker %d starting", workerId));
         //
         // Process hashing targets until shutdown
         //
@@ -154,7 +164,7 @@ public class MintWorker implements Runnable {
                     //
                     if (gpuDisabled && currentTime-gpuDisabledTime > 5*60*1000) {
                         gpuDisabled = false;
-                        gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm());
+                        gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm(), Main.gpuDeviceList.get(gpuId));
                         log.info("Enabling GPU hashing");
                     }
                 }
@@ -226,25 +236,18 @@ public class MintWorker implements Runnable {
      */
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
         boolean meetsTarget = false;
-        int count = Main.gpuIntensity * gpuFunction.getScale();
-        Range range = gpuFunction.getRange(count);
-        int size = range.getGlobalSize(0);
         gpuFunction.setInput(hashBytes, targetBytes);
-        gpuFunction.putKernelData();
-        if (size == count)
-            gpuFunction.execute(range);
-        else
-            gpuFunction.execute(range, count/size+1);
-        gpuFunction.getKernelData();
+        gpuFunction.execute();
         if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
             log.info("Disabling GPU hashing and reverting to CPU hashing");
             gpuDisabled = true;
-            gpuFunction = null;
             gpuDisabledTime = System.currentTimeMillis();
+            gpuFunction.dispose();
+            gpuFunction = null;
         } else {
             meetsTarget = gpuFunction.isSolved();
-            hashCount += (long)count;
+            hashCount += gpuFunction.getCount();
             if (meetsTarget)
                 nonce = gpuFunction.getNonce();
         }

@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileLock;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.LogManager;
 
@@ -40,6 +42,10 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+
+import com.amd.aparapi.device.Device;
+import com.amd.aparapi.device.OpenCLDevice;
+import com.amd.aparapi.internal.opencl.OpenCLPlatform;
 
 /**
  * NxtMint will mint a Nxt currency
@@ -118,6 +124,12 @@ public class Main {
     /** GPU intensity */
     public static int gpuIntensity = 0;
     
+    /** GPU devices */
+    public static List<Integer> gpuDevices = new ArrayList<>();
+    
+    /** GPU cores */
+    public static List<Integer> gpuCores = new ArrayList<>();
+    
     /** Minting account identifier */
     public static long accountId;
     
@@ -129,6 +141,9 @@ public class Main {
     
     /** Minting units expressed as a whole number with an implied decimal point */
     public static long mintingUnits;
+    
+    /** GPU devices */
+    public static List<GpuDevice> gpuDeviceList = new ArrayList<>();
 
     /**
      * Handles program initialization
@@ -253,6 +268,22 @@ public class Main {
                 throw new IllegalArgumentException(String.format("Maximum minting units is %f for currency %s",
                                                     (double)maxUnits*Math.pow(10, -currency.getDecimals()),
                                                     currencyCode));
+            //
+            // Get the GPU device list if GPU intensity is non-zero
+            //
+            if (gpuIntensity > 0) {
+                if (gpuDevices.isEmpty()) {
+                    gpuDevices.add(0);
+                    gpuCores.add(0);
+                }
+                buildGpuList();
+                for (int i=0; i<gpuDevices.size(); i++) {
+                    int devnum = gpuDevices.get(i);
+                    if (devnum >= gpuDeviceList.size())
+                        throw new IllegalArgumentException(String.format("GPU device %d is not available", devnum));
+                    gpuDeviceList.get(devnum).setCores(gpuCores.get(i));
+                }
+            }
             //
             // Start the GUI
             //
@@ -382,6 +413,14 @@ public class Main {
                     case "gpuintensity":
                         gpuIntensity = Integer.valueOf(value);
                         break;
+                    case "gpudevice":
+                        String[] splits = value.split(",");
+                        gpuDevices.add(Integer.valueOf(splits[0]));
+                        if (splits.length > 1)
+                            gpuCores.add(Integer.valueOf(splits[1]));
+                        else
+                            gpuCores.add(0);
+                        break;
                     case "enablegui":
                         if (value.equalsIgnoreCase("true"))
                             enableGUI = true;
@@ -395,6 +434,29 @@ public class Main {
                 }
             }
         }
+    }
+    
+    /**
+     * Build a list of available GPU devices
+     */
+    private static void buildGpuList() {
+        //
+        // Enumerate the OpenCL platforms and build the device list
+        //
+        List<OpenCLPlatform> platforms = new OpenCLPlatform().getOpenCLPlatforms();
+        platforms.stream().forEach((platform) -> {
+            List<OpenCLDevice> devices = platform.getOpenCLDevices();
+            devices.stream()
+                   .filter((device) -> (device.getType().equals(OpenCLDevice.TYPE.GPU)))
+                   .forEach((device) -> {
+                log.info(String.format(
+                        "GPU device %d: %s, %dMB global memory, %dKB local memory, %d compute units",
+                        gpuDeviceList.size(), platform.getName(),
+                        device.getGlobalMemSize()/(1024*1024), device.getLocalMemSize()/1024,
+                        device.getMaxComputeUnits()));
+                gpuDeviceList.add(new GpuDevice(device));
+            });
+        });
     }
 
     /**

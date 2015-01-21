@@ -3,6 +3,8 @@ NxtMint Change Log
 
 Version 1.2.0
   - GPU support for SCRYPT
+  - Support minting using multiple GPUs
+  - Include the Aparapi runtime libraries in the NxtMint package
   
 Version 1.1.0
   - Add sample.logging.properties, sample.mint.bat, sample.mint.sh
