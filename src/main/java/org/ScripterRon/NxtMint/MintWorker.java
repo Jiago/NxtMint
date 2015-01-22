@@ -74,6 +74,7 @@ public class MintWorker implements Runnable {
      * @param       workerId        Worker identifier
      * @param       solutionQueue   Hash solution queue
      * @param       gpuWorker       TRUE if this is the GPU worker
+     * @param       gpuId           GPU identifier
      */
     public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, 
                                     boolean gpuWorker, int gpuId) {
