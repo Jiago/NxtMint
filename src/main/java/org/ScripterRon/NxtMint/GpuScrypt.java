@@ -16,6 +16,8 @@
 package org.ScripterRon.NxtMint;
 import static org.ScripterRon.NxtMint.Main.log;
 
+import com.amd.aparapi.device.OpenCLDevice;
+
 /**
  * SCRYPT hash algorithm for Monetary System currencies
  * 
@@ -64,7 +66,7 @@ public class GpuScrypt extends GpuFunction {
         0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
     };
 
-    /** SHA-256 data areas */
+    /** SHA-256 data areas - 340 bytes of global memory */
     private final int[] DH;
     private final int[] DX;
     private final int[] xOff;
@@ -73,7 +75,7 @@ public class GpuScrypt extends GpuFunction {
     private final long[] xByteCount;
     private final byte[] digest;
 
-    /** Digest save areas */
+    /** Digest save areas - 340 bytes of global memory */
     private final int[] sDH;
     private final int[] sDX;
     private final int[] sxOff;
@@ -81,7 +83,7 @@ public class GpuScrypt extends GpuFunction {
     private final int[] sxBuffOff;
     private final long[] sxByteCount;
 
-    /** IPad digest save areas */
+    /** IPad digest save areas - 340 bytes of global memory */
     private final int[] ipDH;
     private final int[] ipDX;
     private final int[] ipxOff;
@@ -89,7 +91,7 @@ public class GpuScrypt extends GpuFunction {
     private final int[] ipxBuffOff;
     private final long[] ipxByteCount;
 
-    /** OPad digest save areas */
+    /** OPad digest save areas - 340 bytes of global memory */
     private final int[] opDH;
     private final int[] opDX;
     private final int[] opxOff;
@@ -97,17 +99,17 @@ public class GpuScrypt extends GpuFunction {
     private final int[] opxBuffOff;
     private final long[] opxByteCount;
 
-    /** HMacSha256 data areas */
+    /** HMacSha256 data areas - 192 bytes of global memory */
     private final byte[] inputPad;
     private final byte[] outputBuf;
     private final byte[] macDigest;
 
-    /** SCRYPT data areas */
+    /** SCRYPT data areas - 131,236 bytes of global memory  */
     private final byte[] H;
     private final byte[] B;
     private final int[] V;
     
-    /** SCRYPT permutation array - place in local storage for fast access */
+    /** SCRYPT permutation array - 128 bytes of local memory */
     private final int[] X_$local$;
 
     /** Input data */
@@ -141,10 +143,21 @@ public class GpuScrypt extends GpuFunction {
         //
         // Calculate the local and global sizes
         //
-        localSize[0] = (gpuDevice.getCores()!=0 ? 
-                            gpuDevice.getCores()/gpuDevice.getDevice().getMaxComputeUnits() : 256);
-        globalSize = localSize[0] * gpuDevice.getDevice().getMaxComputeUnits();
-        this.range = gpuDevice.getDevice().createRange(globalSize, localSize[0]);
+        // The local size is limited by the available local memory
+        // The glocal size is limited by the available global memory
+        //
+        OpenCLDevice clDevice = gpuDevice.getDevice();
+        int groupSize = gpuDevice.getWorkGroupSize();
+        int maxGroupSize = (int)(clDevice.getLocalMemSize()/128);
+        if (groupSize > maxGroupSize) {
+            log.warn(String.format("Work group size %d exceeds local memory size %dKB, setting size to %d",
+                                   groupSize, clDevice.getLocalMemSize()/1024, maxGroupSize));
+            groupSize = maxGroupSize;
+        }
+        localSize[0] = groupSize;
+        int maxGroups = (int)(clDevice.getGlobalMemSize()/132788);
+        globalSize = Math.min(256*clDevice.getMaxComputeUnits(), maxGroups);
+        this.range = clDevice.createRange(globalSize, localSize[0]);
         this.count = ((Main.gpuIntensity*1024)/globalSize)*globalSize;
         log.debug(String.format("GPU local size %d, global size %d", localSize[0], globalSize));
         //
@@ -312,7 +325,7 @@ public class GpuScrypt extends GpuFunction {
         int i=0, j=0, k=0;
         int base = id*32;
         int bBase = id*132;
-        int xBase = getLocalId(0)*32;
+        int xBase = localId*32;
         int vBase = id*32*1024;
         //
         // Modify the nonce for this kernel instance
@@ -338,12 +351,9 @@ public class GpuScrypt extends GpuFunction {
         for (i=40; i<132; i++)
             B[bBase+i] = (byte)0;
         //
-        // Initialize HmacSha256
+        // Initialize state
         //
         initMac(id);
-        //
-        // Hash the data
-        //
         for (i=0; i<4; i++) {
             B[bBase+43] = (byte)(i + 1);
             updateDigest(B, bBase, 44, id);
@@ -354,6 +364,9 @@ public class GpuScrypt extends GpuFunction {
                 X_$local$[xBase+i*8+j] = ((int)H[base+j*4+0]&0xff) | (((int)H[base+j*4+1]&0xff)<<8) | 
                                 (((int)H[base+j*4+2]&0xff)<<16) | (((int)H[base+j*4+3]&0xff)<< 24);
         }
+        //
+        // Perform the hashes
+        //
         for (i=0; i<1024; i++) {
             for (j=0; j<32; j++)
                 V[vBase+i*32+j] = X_$local$[xBase+j];
@@ -408,7 +421,7 @@ public class GpuScrypt extends GpuFunction {
         int di = xBase;
         int xi = xBase + 16;
         //
-        //  Permutate X[0]-X[15] and X[16]-X[31]
+        //  Process X[0]-X[15] and X[16]-X[31]
         //
         X_$local$[di+0] ^= X_$local$[xi+0];   X_$local$[di+1] ^= X_$local$[xi+1];  
         X_$local$[di+2] ^= X_$local$[xi+2];   X_$local$[di+3] ^= X_$local$[xi+3];  
@@ -427,36 +440,49 @@ public class GpuScrypt extends GpuFunction {
         int x10 = X_$local$[di+10];  int x11 = X_$local$[di+11];
         int x12 = X_$local$[di+12];  int x13 = X_$local$[di+13];  
         int x14 = X_$local$[di+14];  int x15 = X_$local$[di+15];
-        
+        //
+        // 4x4 matrix: 0   1   2   3
+        //             4   5   6   7
+        //             8   9  10  11
+        //            12  13  14  15
+        //
         for (int i=0; i<8; i+=2) {
+                // Column 0-4-8-12
             int value = x00+x12; x04 ^= (value<<7) | (value>>>(32-7));
             value = x04+x00;  x08 ^= (value<<9) | (value>>>(32-9));
             value = x08+x04;  x12 ^= (value<<13) | (value>>>(32-13));
             value = x12+x08;  x00 ^= (value<<18) | (value>>>(32-18));
+                // Column 1-5-9-13
             value = x05+x01;  x09 ^= (value<<7) | (value>>>(32-7));
             value = x09+x05;  x13 ^= (value<<9) | (value>>>(32-9));
             value = x13+x09;  x01 ^= (value<<13) | (value>>>(32-13));
             value = x01+x13;  x05 ^= (value<<18) | (value>>>(32-18));
+                // Column 2-6-10-14
             value = x10+x06;  x14 ^= (value<<7) | (value>>>(32-7));
             value = x14+x10;  x02 ^= (value<<9) | (value>>>(32-9));
             value = x02+x14;  x06 ^= (value<<13) | (value>>>(32-13));
             value = x06+x02;  x10 ^= (value<<18) | (value>>>(32-18));
+                // Column 3-7-11-15
             value = x15+x11;  x03 ^= (value<<7) | (value>>>(32-7));
             value = x03+x15;  x07 ^= (value<<9) | (value>>>(32-9));
             value = x07+x03;  x11 ^= (value<<13) | (value>>>(32-13));
             value = x11+x07;  x15 ^= (value<<18) | (value>>>(32-18));
+                // Row 0-1-2-3
             value = x00+x03;  x01 ^= (value<<7) | (value>>>(32-7));
             value = x01+x00;  x02 ^= (value<<9) | (value>>>(32-9));
             value = x02+x01;  x03 ^= (value<<13) | (value>>>(32-13));
             value = x03+x02;  x00 ^= (value<<18) | (value>>>(32-18));
+                // Row 4-5-6-7
             value = x05+x04;  x06 ^= (value<<7) | (value>>>(32-7));
             value = x06+x05;  x07 ^= (value<<9) | (value>>>(32-9));
             value = x07+x06;  x04 ^= (value<<13) | (value>>>(32-13));
             value = x04+x07;  x05 ^= (value<<18) | (value>>>(32-18));
+                // Row 8-9-10-11
             value = x10+x09;  x11 ^= (value<<7) | (value>>>(32-7));
             value = x11+x10;  x08 ^= (value<<9) | (value>>>(32-9));
             value = x08+x11;  x09 ^= (value<<13) | (value>>>(32-13));
             value = x09+x08;  x10 ^= (value<<18) | (value>>>(32-18));
+                // Row 12-13-14-15
             value = x15+x14;  x12 ^= (value<<7) | (value>>>(32-7));
             value = x12+x15;  x13 ^= (value<<9) | (value>>>(32-9));
             value = x13+x12;  x14 ^= (value<<13) | (value>>>(32-13));
@@ -472,7 +498,7 @@ public class GpuScrypt extends GpuFunction {
         X_$local$[di+12] += x12; X_$local$[di+13] += x13;  
         X_$local$[di+14] += x14; X_$local$[di+15] += x15;
         //
-        //  Permutate X[16]-X[31] and X[0]-X[15]
+        //  Process X[16]-X[31] and X[0]-X[15]
         //        
         X_$local$[xi+0] ^= X_$local$[di+0];   X_$local$[xi+1] ^= X_$local$[di+1];  
         X_$local$[xi+2] ^= X_$local$[di+2];   X_$local$[xi+3] ^= X_$local$[di+3];  
@@ -493,34 +519,42 @@ public class GpuScrypt extends GpuFunction {
         x14 = X_$local$[xi+14]; x15 = X_$local$[xi+15];
         
         for (int i=0; i<8; i+=2) {
+                // Column 0-4-8-12
             int value = x00+x12; x04 ^= (value<<7) | (value>>>(32-7));
             value = x04+x00;  x08 ^= (value<<9) | (value>>>(32-9));
             value = x08+x04;  x12 ^= (value<<13) | (value>>>(32-13));
             value = x12+x08;  x00 ^= (value<<18) | (value>>>(32-18));
+                // Column 1-5-9-13
             value = x05+x01;  x09 ^= (value<<7) | (value>>>(32-7));
             value = x09+x05;  x13 ^= (value<<9) | (value>>>(32-9));
             value = x13+x09;  x01 ^= (value<<13) | (value>>>(32-13));
             value = x01+x13;  x05 ^= (value<<18) | (value>>>(32-18));
+                // Column 2-6-10-14
             value = x10+x06;  x14 ^= (value<<7) | (value>>>(32-7));
             value = x14+x10;  x02 ^= (value<<9) | (value>>>(32-9));
             value = x02+x14;  x06 ^= (value<<13) | (value>>>(32-13));
             value = x06+x02;  x10 ^= (value<<18) | (value>>>(32-18));
+                // Column 3-7-11-15
             value = x15+x11;  x03 ^= (value<<7) | (value>>>(32-7));
             value = x03+x15;  x07 ^= (value<<9) | (value>>>(32-9));
             value = x07+x03;  x11 ^= (value<<13) | (value>>>(32-13));
             value = x11+x07;  x15 ^= (value<<18) | (value>>>(32-18));
+                // Row 0-1-2-3
             value = x00+x03;  x01 ^= (value<<7) | (value>>>(32-7));
             value = x01+x00;  x02 ^= (value<<9) | (value>>>(32-9));
             value = x02+x01;  x03 ^= (value<<13) | (value>>>(32-13));
             value = x03+x02;  x00 ^= (value<<18) | (value>>>(32-18));
+                // Row 4-5-6-7
             value = x05+x04;  x06 ^= (value<<7) | (value>>>(32-7));
             value = x06+x05;  x07 ^= (value<<9) | (value>>>(32-9));
             value = x07+x06;  x04 ^= (value<<13) | (value>>>(32-13));
             value = x04+x07;  x05 ^= (value<<18) | (value>>>(32-18));
+                // Row 8-9-10-11
             value = x10+x09;  x11 ^= (value<<7) | (value>>>(32-7));
             value = x11+x10;  x08 ^= (value<<9) | (value>>>(32-9));
             value = x08+x11;  x09 ^= (value<<13) | (value>>>(32-13));
             value = x09+x08;  x10 ^= (value<<18) | (value>>>(32-18));
+                // Row 12-13-14-15
             value = x15+x14;  x12 ^= (value<<7) | (value>>>(32-7));
             value = x12+x15;  x13 ^= (value<<9) | (value>>>(32-9));
             value = x13+x12;  x14 ^= (value<<13) | (value>>>(32-13));

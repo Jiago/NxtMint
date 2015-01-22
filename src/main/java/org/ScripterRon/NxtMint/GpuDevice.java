@@ -23,19 +23,19 @@ import com.amd.aparapi.device.OpenCLDevice;
 public class GpuDevice {
     
     /** Associated OpenCL device */
-    private final OpenCLDevice device;
+    private final OpenCLDevice clDevice;
     
-    /** Number of processing cores */
-    private int cores;
+    /** Work group size */
+    private int workGroupSize;
     
     /**
-     * Create the GPU device with the default of 256 cores per compute unit
+     * Create the GPU device with the default of 256 work items per work group
      * 
-     * @param       device          Associated OpenCL device
+     * @param       clDevice        Associated OpenCL device
      */
-    public GpuDevice(OpenCLDevice device) {
-        this.device = device;
-        this.cores = 256 * device.getMaxComputeUnits();
+    public GpuDevice(OpenCLDevice clDevice) {
+        this.clDevice = clDevice;
+        this.workGroupSize = Math.min(256, clDevice.getMaxWorkGroupSize());
     }
     
     /**
@@ -44,24 +44,24 @@ public class GpuDevice {
      * @return                      OpenCL device
      */
     public OpenCLDevice getDevice() {
-        return device;
+        return clDevice;
     }
     
     /**
-     * Return the number or processing cores
+     * Return the work group size
      * 
-     * @return                      Number of cores
+     * @return                      Work group size
      */
-    public int getCores() {
-        return cores;
+    public int getWorkGroupSize() {
+        return workGroupSize;
     }
     
     /**
-     * Set the number of processing cores
+     * Set the work group size
      * 
-     * @param       cores           Number of cores
+     * @param       size            Work group size
      */
-    public void setCores(int cores) {
-        this.cores = cores;
+    public void setWorkGroupSize(int size) {
+        workGroupSize = Math.min(size, clDevice.getMaxWorkGroupSize());
     }
 }

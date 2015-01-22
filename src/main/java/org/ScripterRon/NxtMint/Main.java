@@ -43,7 +43,6 @@ import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
-import com.amd.aparapi.device.Device;
 import com.amd.aparapi.device.OpenCLDevice;
 import com.amd.aparapi.internal.opencl.OpenCLPlatform;
 
@@ -128,7 +127,7 @@ public class Main {
     public static List<Integer> gpuDevices = new ArrayList<>();
     
     /** GPU cores */
-    public static List<Integer> gpuCores = new ArrayList<>();
+    public static List<Integer> gpuSizes = new ArrayList<>();
     
     /** Minting account identifier */
     public static long accountId;
@@ -274,14 +273,22 @@ public class Main {
             if (gpuIntensity > 0) {
                 if (gpuDevices.isEmpty()) {
                     gpuDevices.add(0);
-                    gpuCores.add(0);
+                    gpuSizes.add(256);
                 }
                 buildGpuList();
                 for (int i=0; i<gpuDevices.size(); i++) {
                     int devnum = gpuDevices.get(i);
                     if (devnum >= gpuDeviceList.size())
                         throw new IllegalArgumentException(String.format("GPU device %d is not available", devnum));
-                    gpuDeviceList.get(devnum).setCores(gpuCores.get(i));
+                    GpuDevice gpuDevice = gpuDeviceList.get(devnum);
+                    OpenCLDevice clDevice = gpuDevice.getDevice();
+                    if (gpuSizes.get(i) > clDevice.getMaxWorkGroupSize()) {
+                        log.warn(String.format("Work group size %d for GPU %d exceeds maximum size %d, using maximum size",
+                                               gpuSizes.get(i), devnum, clDevice.getMaxWorkGroupSize()));
+                        gpuDevice.setWorkGroupSize(clDevice.getMaxWorkGroupSize());
+                    } else {
+                        gpuDevice.setWorkGroupSize(gpuSizes.get(i));
+                    }
                 }
             }
             //
@@ -415,11 +422,11 @@ public class Main {
                         break;
                     case "gpudevice":
                         String[] splits = value.split(",");
-                        gpuDevices.add(Integer.valueOf(splits[0]));
+                        gpuDevices.add(Integer.valueOf(splits[0].trim()));
                         if (splits.length > 1)
-                            gpuCores.add(Integer.valueOf(splits[1]));
+                            gpuSizes.add(Integer.valueOf(splits[1].trim()));
                         else
-                            gpuCores.add(0);
+                            gpuSizes.add(256);
                         break;
                     case "enablegui":
                         if (value.equalsIgnoreCase("true"))
@@ -450,10 +457,11 @@ public class Main {
                    .filter((device) -> (device.getType().equals(OpenCLDevice.TYPE.GPU)))
                    .forEach((device) -> {
                 log.info(String.format(
-                        "GPU device %d: %s, %dMB global memory, %dKB local memory, %d compute units",
+                        "GPU device %d: %s\n"
+                            + "  %dMB global memory, %dKB local memory, %d compute units, Max work group size %d",
                         gpuDeviceList.size(), platform.getName(),
                         device.getGlobalMemSize()/(1024*1024), device.getLocalMemSize()/1024,
-                        device.getMaxComputeUnits()));
+                        device.getMaxComputeUnits(), device.getMaxWorkGroupSize()));
                 gpuDeviceList.add(new GpuDevice(device));
             });
         });

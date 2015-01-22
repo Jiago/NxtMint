@@ -7,7 +7,7 @@ The NRS node used to create the mint transactions must accept API connections.  
 
 NxtMint requires the Java 8 runtime since it uses language features that are not available in earlier versions of Java.   
 
-Aparapi and OpenCL are used to mint using the GPU and are not needed if you are using just the CPU.  You will need to obtain OpenCL from your graphics card vendor (OpenCL may be automatically installed as part of the graphics card driver installation).  Aparapi is distributed as part of the NxtMint package.    
+Aparapi and OpenCL are used to mint using the GPU and are not needed if you are using just the CPU.  You will need to obtain OpenCL from your graphics card vendor (OpenCL may be automatically installed as part of the graphics card driver installation).  The Aparapi runtime is distributed in the NxtMint package so that the Java and native portions are synchronized.  You can download the full Aparapi package from https://github.com/aparapi/aparapi/releases.    
 
 Sample mint.bat and mint.sh files are provided.  Rename and edit them as desired.
 
@@ -69,12 +69,16 @@ The following configuration options can be specified in NxtMint.conf.  This file
     Specifies the number of CPU threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each processor to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.  No CPU threads will be used if cpuThreads is 0.     
     
   - gpuIntensity=count    
-    Specifies the GPU computation intensity and defaults to 0.  Your graphics card must support OpenCL in order to use the GPU.  The highest intensity that can be specified is dependent on the amount of memory available on the graphics card.  You will need to try different values to determine an acceptable hash rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.  A GPU will not be used if gpuIntensity is 0.   
+    Specifies the GPU computation intensity and defaults to 0.  Your graphics card must support OpenCL in order to use the GPU.  You will need to try different values to determine an acceptable hash rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.  A GPU will not be used if gpuIntensity is 0.   
     
-  - gpuDevice=index,cores
-    Specifies the GPU device number (0, 1, 2, ...) and the number of available processing cores.  The first GPU device will be used if this parameter is omitted.  This parameter can be repeated to use multiple GPU devices.  The GPU devices that are available are listed when NxtMint is started with a non-zero value for gpuIntensity.  
+  - gpuDevice=index,wsize
+    Specifies the GPU device number (0, 1, 2, ...) and the work group size.  The first GPU device will be used if this parameter is omitted.  This parameter can be repeated to use multiple GPU devices.  The GPU devices that are available are listed when NxtMint is started with a non-zero value for gpuIntensity.  
 
-    The number of processing cores is used to determine the number of kernel instances per workgroup.  NxtMint will use 256 instances per workgroup if the number of cores is not specified.  Otherwise, the number of instances is calculated as (number of cores) / (number of compute units).  You should first try running without specifying the number of cores (thus using 256 instances per workgroup).  If you run into adapter resource shortages, then specify the number of cores to be used.  You can determine the number of processing cores on your adapter card through the device manager or the hardware specifications for the card.         
+    The work group size specifies the number of work items per work group and defaults to 256.  Performance can sometimes be improved by setting the work group size to the number of cores in a compute unit.  You can determine this value by dividing the number of cores on the card by the number of compute units.    
+    
+    All work items in a work group share local memory and are processed by the same compute unit.  This is important for the Scrypt algorithm since it allocates local memory to hold the state array (128 bytes per work item).  Memory cache contention can lower the hash rate, so setting a work group size smaller than 256 will often improve performance.    
+    
+    The gpuIntensity determines the number of work groups for all algorithms except Scrypt.  Scrypt allocates a large amount of global memory which is shared by all work groups.  Scrypt will start one work group for each compute unit.  The gpuIntensity value then determines the number of passes (sequential work group executions) before control is returned to Java.
     
   - enableGUI=true|false      
     Specifies whether or not to enable the GUI and defaults to true.  Disabling the GUI allows NxtMint to run in headless environments such as a disconnected service.      

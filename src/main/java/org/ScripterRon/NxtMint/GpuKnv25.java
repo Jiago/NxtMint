@@ -16,6 +16,8 @@
 package org.ScripterRon.NxtMint;
 import static org.ScripterRon.NxtMint.Main.log;
 
+import com.amd.aparapi.device.OpenCLDevice;
+
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
  * 
@@ -86,10 +88,10 @@ public class GpuKnv25 extends GpuFunction {
         //
         // Calculate the local and global sizes
         //
-        int localSize = (gpuDevice.getCores()!=0 ? 
-                            gpuDevice.getCores()/gpuDevice.getDevice().getMaxComputeUnits() : 256);
-        int globalSize = ((Main.gpuIntensity * 1024)/localSize)*localSize;
-        this.range = gpuDevice.getDevice().createRange(globalSize, localSize);
+        OpenCLDevice clDevice = gpuDevice.getDevice();
+        int localSize = gpuDevice.getWorkGroupSize();
+        int globalSize = ((Main.gpuIntensity*1024)/localSize)*localSize;
+        this.range = clDevice.createRange(globalSize, localSize);
         this.count = globalSize;
         log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
     }

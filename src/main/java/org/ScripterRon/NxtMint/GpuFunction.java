@@ -24,7 +24,7 @@ import com.amd.aparapi.Range;
 public abstract class GpuFunction extends Kernel {
     
     /** GPU device */
-    protected GpuDevice device;
+    protected GpuDevice gpuDevice;
     
     /** Execution range */
     protected Range range;
@@ -39,7 +39,7 @@ public abstract class GpuFunction extends Kernel {
      */
     protected GpuFunction(GpuDevice gpuDevice) {
         super();
-        this.device = gpuDevice;
+        this.gpuDevice = gpuDevice;
     }
     
     /**
