@@ -126,8 +126,11 @@ public class Main {
     /** GPU devices */
     public static List<Integer> gpuDevices = new ArrayList<>();
     
-    /** GPU cores */
+    /** GPU work group sizes */
     public static List<Integer> gpuSizes = new ArrayList<>();
+    
+    /** GPU work group counts */
+    public static List<Integer> gpuCounts = new ArrayList<>();
     
     /** Minting account identifier */
     public static long accountId;
@@ -274,6 +277,7 @@ public class Main {
                 if (gpuDevices.isEmpty()) {
                     gpuDevices.add(0);
                     gpuSizes.add(256);
+                    gpuCounts.add(0);
                 }
                 buildGpuList();
                 for (int i=0; i<gpuDevices.size(); i++) {
@@ -289,6 +293,7 @@ public class Main {
                     } else {
                         gpuDevice.setWorkGroupSize(gpuSizes.get(i));
                     }
+                    gpuDevice.setWorkGroupCount(gpuCounts.get(i));
                 }
             }
             //
@@ -423,10 +428,16 @@ public class Main {
                     case "gpudevice":
                         String[] splits = value.split(",");
                         gpuDevices.add(Integer.valueOf(splits[0].trim()));
-                        if (splits.length > 1)
+                        if (splits.length > 1) {
                             gpuSizes.add(Integer.valueOf(splits[1].trim()));
-                        else
+                            if (splits.length > 2) {
+                                gpuCounts.add(Integer.valueOf(splits[2].trim()));
+                            } else {
+                                gpuCounts.add(0);
+                            }
+                        } else {
                             gpuSizes.add(256);
+                        }
                         break;
                     case "enablegui":
                         if (value.equalsIgnoreCase("true"))

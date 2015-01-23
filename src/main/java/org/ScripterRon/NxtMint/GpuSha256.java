@@ -99,10 +99,15 @@ public class GpuSha256 extends GpuFunction {
         // Calculate the local and global sizes
         //
         OpenCLDevice clDevice = gpuDevice.getDevice();
+        count = Main.gpuIntensity*1024;
         int localSize = gpuDevice.getWorkGroupSize();
-        int globalSize = ((Main.gpuIntensity*1024*1024)/localSize)*localSize;
-        this.range = clDevice.createRange(globalSize, localSize);
-        this.count = globalSize;
+        int globalSize;
+        if (gpuDevice.getWorkGroupCount() != 0)
+            globalSize = gpuDevice.getWorkGroupCount()*localSize;
+        else
+            globalSize = (this.count/localSize)*localSize;
+        range = clDevice.createRange(globalSize, localSize);
+        count = ((count+globalSize-1)/globalSize)*globalSize;
         log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
     }
 
@@ -187,8 +192,12 @@ public class GpuSha256 extends GpuFunction {
     /**
      * Execute the kernel
      */
+    @Override
     public void execute() {
-        super.execute(range);
+        if (range.getGlobalSize(0) < count)
+            super.execute(range, count/range.getGlobalSize(0));
+        else
+            super.execute(range);
     }
 
     /**

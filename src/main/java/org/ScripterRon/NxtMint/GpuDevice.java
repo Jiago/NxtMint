@@ -28,6 +28,9 @@ public class GpuDevice {
     /** Work group size */
     private int workGroupSize;
     
+    /** Work group count */
+    private int workGroupCount;
+    
     /**
      * Create the GPU device with the default of 256 work items per work group
      * 
@@ -63,5 +66,23 @@ public class GpuDevice {
      */
     public void setWorkGroupSize(int size) {
         workGroupSize = Math.min(size, clDevice.getMaxWorkGroupSize());
+    }
+    
+    /**
+     * Return the work group count
+     * 
+     * @return                      Work group count
+     */
+    public int getWorkGroupCount() {
+        return workGroupCount;
+    }
+    
+    /**
+     * Set the work group count
+     * 
+     * @param       count           Work group count
+     */
+    public void setWorkGroupCount(int count) {
+        workGroupCount = count;
     }
 }

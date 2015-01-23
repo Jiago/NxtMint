@@ -1,6 +1,9 @@
 NxtMint Change Log
 ==================
 
+Version 1.3.0
+  - Add work group count parameter to the gpuDevice configuration option
+  
 Version 1.2.0
   - GPU support for SCRYPT
   - Support minting using multiple GPUs

@@ -129,9 +129,6 @@ public class GpuScrypt extends GpuFunction {
     
     /** Local size */
     private final int[] localSize = new int[1];
-    
-    /** Global size */
-    private final int globalSize;
 
     /**
      * Create the GPU hash function
@@ -147,18 +144,24 @@ public class GpuScrypt extends GpuFunction {
         // The glocal size is limited by the available global memory
         //
         OpenCLDevice clDevice = gpuDevice.getDevice();
-        int groupSize = gpuDevice.getWorkGroupSize();
+        count = Main.gpuIntensity*1024;
+        localSize[0] = gpuDevice.getWorkGroupSize();
         int maxGroupSize = (int)(clDevice.getLocalMemSize()/128);
-        if (groupSize > maxGroupSize) {
+        if (localSize[0] > maxGroupSize) {
             log.warn(String.format("Work group size %d exceeds local memory size %dKB, setting size to %d",
-                                   groupSize, clDevice.getLocalMemSize()/1024, maxGroupSize));
-            groupSize = maxGroupSize;
+                                   localSize[0], clDevice.getLocalMemSize()/1024, maxGroupSize));
+            localSize[0] = maxGroupSize;
         }
-        localSize[0] = groupSize;
-        int maxGroups = (int)(clDevice.getGlobalMemSize()/132788);
-        globalSize = Math.min(256*clDevice.getMaxComputeUnits(), maxGroups);
-        this.range = clDevice.createRange(globalSize, localSize[0]);
-        this.count = ((Main.gpuIntensity*1024)/globalSize)*globalSize;
+        int groupCount = (gpuDevice.getWorkGroupCount()!=0 ? gpuDevice.getWorkGroupCount() : (count/localSize[0]));
+        groupCount = Math.min((int)(clDevice.getGlobalMemSize()/132788), groupCount);
+        if (groupCount < gpuDevice.getWorkGroupCount()) {
+            log.warn(String.format("Work group count %d exceeds global memory size %dMB, setting count to %d",
+                                   gpuDevice.getWorkGroupCount(), clDevice.getGlobalMemSize()/(1024*1024),
+                                   groupCount));
+        }
+        int globalSize = groupCount*localSize[0];
+        range = clDevice.createRange(globalSize, localSize[0]);
+        count = ((count+globalSize-1)/globalSize)*globalSize;
         log.debug(String.format("GPU local size %d, global size %d", localSize[0], globalSize));
         //
         // Allocate storage
@@ -294,7 +297,10 @@ public class GpuScrypt extends GpuFunction {
         //
         // Execute the kernal
         //
-        super.execute(range, Math.max(count/globalSize, 1));
+        if (range.getGlobalSize(0) < count)
+            super.execute(range, count/range.getGlobalSize(0));
+        else
+            super.execute(range);
         //
         // Transfer data from GPU memory
         //
