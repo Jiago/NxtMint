@@ -162,7 +162,14 @@ public class Mint {
                             }
                         }
                     } catch (NxtException exc) {
-                        log.error("Unable to submit 'currencyMint' transaction, will retry later", exc);
+                        int errCode = exc.getReasonCode();
+                        if (errCode != 0) {
+                            log.error("Server rejected 'currencyMint' transaction - discarding", exc);
+                            submitted = true;
+                            pending.remove(0);
+                        } else {
+                            log.error("Unable to submit 'currencyMint' transaction - retrying", exc);
+                        }
                     }
                     if (!submitted)
                         Thread.sleep(30000);
