@@ -110,13 +110,6 @@ public abstract class GpuFunction extends Kernel {
     public abstract long getNonce();
     
     /**
-     * Return the solution digest
-     * 
-     * @return                      Hash digest
-     */
-    public abstract byte[] getDigest();
-    
-    /**
      * Execute the kernel
      */
     public abstract void execute();

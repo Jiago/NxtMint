@@ -118,9 +118,6 @@ public class GpuScrypt extends GpuFunction {
     /** Hash target */
     private final byte[] target = new byte[32];
     
-    /** Hash digest */
-    private final byte[] output = new byte[32];
-    
     /** TRUE if the target is met */
     private final boolean[] done = new boolean[1];
     
@@ -274,16 +271,6 @@ public class GpuScrypt extends GpuFunction {
     public long getNonce() {
         return nonce[0];
     }
-
-    /**
-     * Return the solution digest
-     * 
-     * @return                      Hash digest
-     */
-    @Override
-    public byte[] getDigest() {
-        return output;
-    }
     
     /**
      * Execute the kernel
@@ -296,7 +283,6 @@ public class GpuScrypt extends GpuFunction {
         put(localSize);
         put(input);
         put(target);
-        put(output);
         put(nonce);
         put(done);
         //
@@ -309,7 +295,6 @@ public class GpuScrypt extends GpuFunction {
         //
         // Transfer data from GPU memory
         //
-        get(output);
         get(nonce);
         get(done);
     }
@@ -417,8 +402,6 @@ public class GpuScrypt extends GpuFunction {
         }
         if (isSolved) {
             done[0] = true;
-            for (i=0; i<32; i++)
-                output[i] = macDigest[base+i];
             nonce[0] = n;
         }        
     }
@@ -434,23 +417,38 @@ public class GpuScrypt extends GpuFunction {
         //
         //  Process X[0]-X[15] and X[16]-X[31]
         //
-        X_$local$[di+0] ^= X_$local$[xi+0];   X_$local$[di+1] ^= X_$local$[xi+1];  
-        X_$local$[di+2] ^= X_$local$[xi+2];   X_$local$[di+3] ^= X_$local$[xi+3];  
-        X_$local$[di+4] ^= X_$local$[xi+4];   X_$local$[di+5] ^= X_$local$[xi+5];  
-        X_$local$[di+6] ^= X_$local$[xi+6];   X_$local$[di+7] ^= X_$local$[xi+7];  
-        X_$local$[di+8] ^= X_$local$[xi+8];   X_$local$[di+9] ^= X_$local$[xi+9];
-        X_$local$[di+10] ^= X_$local$[xi+10]; X_$local$[di+11] ^= X_$local$[xi+11];  
-        X_$local$[di+12] ^= X_$local$[xi+12]; X_$local$[di+13] ^= X_$local$[xi+13];  
-        X_$local$[di+14] ^= X_$local$[xi+14]; X_$local$[di+15] ^= X_$local$[xi+15];
-        
-        int x00 = X_$local$[di+0];  int x01 = X_$local$[di+1];  
-        int x02 = X_$local$[di+2];  int x03 = X_$local$[di+3];
-        int x04 = X_$local$[di+4];  int x05 = X_$local$[di+5];  
-        int x06 = X_$local$[di+6];  int x07 = X_$local$[di+7];
-        int x08 = X_$local$[di+8];  int x09 = X_$local$[di+9];  
-        int x10 = X_$local$[di+10];  int x11 = X_$local$[di+11];
-        int x12 = X_$local$[di+12];  int x13 = X_$local$[di+13];  
-        int x14 = X_$local$[di+14];  int x15 = X_$local$[di+15];
+        X_$local$[di+0] ^= X_$local$[xi+0];   
+        int x00 = X_$local$[di+0];
+        X_$local$[di+1] ^= X_$local$[xi+1];  
+        int x01 = X_$local$[di+1];
+        X_$local$[di+2] ^= X_$local$[xi+2];   
+        int x02 = X_$local$[di+2];
+        X_$local$[di+3] ^= X_$local$[xi+3];  
+        int x03 = X_$local$[di+3];
+        X_$local$[di+4] ^= X_$local$[xi+4];   
+        int x04 = X_$local$[di+4];
+        X_$local$[di+5] ^= X_$local$[xi+5];  
+        int x05 = X_$local$[di+5];
+        X_$local$[di+6] ^= X_$local$[xi+6];   
+        int x06 = X_$local$[di+6];
+        X_$local$[di+7] ^= X_$local$[xi+7];  
+        int x07 = X_$local$[di+7];
+        X_$local$[di+8] ^= X_$local$[xi+8];   
+        int x08 = X_$local$[di+8];
+        X_$local$[di+9] ^= X_$local$[xi+9];
+        int x09 = X_$local$[di+9];
+        X_$local$[di+10] ^= X_$local$[xi+10]; 
+        int x10 = X_$local$[di+10];
+        X_$local$[di+11] ^= X_$local$[xi+11];  
+        int x11 = X_$local$[di+11];
+        X_$local$[di+12] ^= X_$local$[xi+12]; 
+        int x12 = X_$local$[di+12];
+        X_$local$[di+13] ^= X_$local$[xi+13];  
+        int x13 = X_$local$[di+13];
+        X_$local$[di+14] ^= X_$local$[xi+14]; 
+        int x14 = X_$local$[di+14];
+        X_$local$[di+15] ^= X_$local$[xi+15];
+        int x15 = X_$local$[di+15];
         //
         // 4x4 matrix: 0   1   2   3
         //             4   5   6   7
@@ -511,23 +509,38 @@ public class GpuScrypt extends GpuFunction {
         //
         //  Process X[16]-X[31] and X[0]-X[15]
         //        
-        X_$local$[xi+0] ^= X_$local$[di+0];   X_$local$[xi+1] ^= X_$local$[di+1];  
-        X_$local$[xi+2] ^= X_$local$[di+2];   X_$local$[xi+3] ^= X_$local$[di+3];  
-        X_$local$[xi+4] ^= X_$local$[di+4];   X_$local$[xi+5] ^= X_$local$[di+5];  
-        X_$local$[xi+6] ^= X_$local$[di+6];   X_$local$[xi+7] ^= X_$local$[di+7];  
-        X_$local$[xi+8] ^= X_$local$[di+8];   X_$local$[xi+9] ^= X_$local$[di+9];
-        X_$local$[xi+10] ^= X_$local$[di+10]; X_$local$[xi+11] ^= X_$local$[di+11];  
-        X_$local$[xi+12] ^= X_$local$[di+12]; X_$local$[xi+13] ^= X_$local$[di+13];  
-        X_$local$[xi+14] ^= X_$local$[di+14]; X_$local$[xi+15] ^= X_$local$[di+15];
-        
-        x00 = X_$local$[xi+0];  x01 = X_$local$[xi+1];  
-        x02 = X_$local$[xi+2];  x03 = X_$local$[xi+3];
-        x04 = X_$local$[xi+4];  x05 = X_$local$[xi+5];  
-        x06 = X_$local$[xi+6];  x07 = X_$local$[xi+7];
-        x08 = X_$local$[xi+8];  x09 = X_$local$[xi+9];  
-        x10 = X_$local$[xi+10]; x11 = X_$local$[xi+11];
-        x12 = X_$local$[xi+12]; x13 = X_$local$[xi+13];  
-        x14 = X_$local$[xi+14]; x15 = X_$local$[xi+15];
+        X_$local$[xi+0] ^= X_$local$[di+0];   
+        x00 = X_$local$[xi+0];
+        X_$local$[xi+1] ^= X_$local$[di+1];  
+        x01 = X_$local$[xi+1];
+        X_$local$[xi+2] ^= X_$local$[di+2];   
+        x02 = X_$local$[xi+2];
+        X_$local$[xi+3] ^= X_$local$[di+3];  
+        x03 = X_$local$[xi+3];
+        X_$local$[xi+4] ^= X_$local$[di+4];   
+        x04 = X_$local$[xi+4];
+        X_$local$[xi+5] ^= X_$local$[di+5];  
+        x05 = X_$local$[xi+5];
+        X_$local$[xi+6] ^= X_$local$[di+6];   
+        x06 = X_$local$[xi+6];
+        X_$local$[xi+7] ^= X_$local$[di+7];  
+        x07 = X_$local$[xi+7];
+        X_$local$[xi+8] ^= X_$local$[di+8];   
+        x08 = X_$local$[xi+8];
+        X_$local$[xi+9] ^= X_$local$[di+9];
+        x09 = X_$local$[xi+9];
+        X_$local$[xi+10] ^= X_$local$[di+10]; 
+        x10 = X_$local$[xi+10];
+        X_$local$[xi+11] ^= X_$local$[di+11];  
+        x11 = X_$local$[xi+11];
+        X_$local$[xi+12] ^= X_$local$[di+12]; 
+        x12 = X_$local$[xi+12];
+        X_$local$[xi+13] ^= X_$local$[di+13];  
+        x13 = X_$local$[xi+13];  
+        X_$local$[xi+14] ^= X_$local$[di+14]; 
+        x14 = X_$local$[xi+14];
+        X_$local$[xi+15] ^= X_$local$[di+15];
+        x15 = X_$local$[xi+15];
         
         for (int i=0; i<8; i+=2) {
                 // Column 0-4-8-12

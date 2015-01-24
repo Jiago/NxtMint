@@ -17,8 +17,9 @@
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
  */
-#include "org_ScripterRon_NxtMint_HashKnv25.h"
+#include <stdlib.h>
 #include <stdio.h>
+#include "org_ScripterRon_NxtMint_HashKnv25.h"
 
 /** Addition Java<->C definitions */
 typedef unsigned char      BYTE;
@@ -41,7 +42,7 @@ static const LONG constants[] = {
 };
 
 /** Hash function */
-BOOLEAN doHash(ULONG *input, BYTE *target, BYTE *digest);
+static BOOLEAN doHash(ULONG *input, BYTE *target);
 
 /**
  * Native Keccak25 hash function
@@ -56,7 +57,6 @@ JNIEXPORT jobject JNICALL Java_org_ScripterRon_NxtMint_HashKnv25_JniHash(JNIEnv 
                                 jobjectArray jniInputBytes, jobjectArray jniTargetBytes,
                                 jlong initialNonce, jint count) {     
     ULONG input[5];
-    BYTE digest[32];
     ULONG nonce = (ULONG)initialNonce;
     int i, offset, loop;
     //
@@ -109,7 +109,7 @@ JNIEXPORT jobject JNICALL Java_org_ScripterRon_NxtMint_HashKnv25_JniHash(JNIEnv 
     for (loop=0; loop<count && !meetsTarget; loop++) {
         nonce++;
         input[0] = nonce;
-        meetsTarget = doHash(input, targetBytes, digest);
+        meetsTarget = doHash(input, targetBytes);
         hashCount++;
     }
     //
@@ -140,39 +140,21 @@ JNIEXPORT jobject JNICALL Java_org_ScripterRon_NxtMint_HashKnv25_JniHash(JNIEnv 
  * 
  * @param       input           Input data
  * @param       target          Target
- * @param       digest          Hash digest
  * @return                      TRUE if the target was met
  */
-BOOLEAN doHash(ULONG *input, BYTE *target, BYTE *digest) {
+static BOOLEAN doHash(ULONG *input, BYTE *target) {
     ULONG state0, state1, state2, state3, state4, state5, state6, state7, 
           state8, state9, state10, state11, state12, state13, state14, state15, 
           state16, state17, state18, state19, state20, state21, state22, state23, state24;
     int i, j;
-    state0 = input[0];
-    state1 = input[1];
-    state2 = input[2];
-    state3 = input[3];
+    state0 = input[0];  state1 = input[1];
+    state2 = input[2];  state3 = input[3];
     state4 = input[4];
-    state5 = 1;
-    state6 = 0;
-    state7 = 0;
-    state8 = 0;
-    state9 = 0;
-    state10 = 0;
-    state11 = 0;
-    state12 = 0;
-    state13 = 0;
-    state14 = 0;
-    state15 = 0;
-    state16 = 0x8000000000000000LL;
-    state17 = 0;
-    state18 = 0;
-    state19 = 0;
-    state20 = 0;
-    state21 = 0;
-    state22 = 0;
-    state23 = 0;
-    state24 = 0;
+    state5 = 1;   state6 = 0;   state7 = 0;   state8 = 0;   state9 = 0;
+    state10 = 0;  state11 = 0;  state12 = 0;  state13 = 0;  state14 = 0;
+    state15 = 0;  state16 = 0x8000000000000000LL;           
+    state17 = 0;  state18 = 0;  state19 = 0;  state20 = 0;  state21 = 0;
+    state22 = 0;  state23 = 0;  state24 = 0;
     for (i=0; i<25;) {
         ULONG t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19;            
         t1 = state0 ^ state5 ^ state10 ^ state15 ^ state20;
@@ -304,43 +286,6 @@ BOOLEAN doHash(ULONG *input, BYTE *target, BYTE *digest) {
                 keepChecking = FALSE;
             }
         }
-    }
-    //
-    // Return the hash digest if we met the target
-    //
-    if (isSolved) {
-        digest[0] = (BYTE)(state0);
-        digest[1] = (BYTE)(state0 >> 8);
-        digest[2] = (BYTE)(state0 >> 16);
-        digest[3] = (BYTE)(state0 >> 24);
-        digest[4] = (BYTE)(state0 >> 32);
-        digest[5] = (BYTE)(state0 >> 40);
-        digest[6] = (BYTE)(state0 >> 48);
-        digest[7] = (BYTE)(state0 >> 56);
-        digest[8] = (BYTE)(state1);
-        digest[9] = (BYTE)(state1 >> 8);
-        digest[10] = (BYTE)(state1 >> 16);
-        digest[11] = (BYTE)(state1 >> 24);
-        digest[12] = (BYTE)(state1 >> 32);
-        digest[13] = (BYTE)(state1 >> 40);
-        digest[14] = (BYTE)(state1 >> 48);
-        digest[15] = (BYTE)(state1 >> 56);
-        digest[16] = (BYTE)(state2);
-        digest[17] = (BYTE)(state2 >> 8);
-        digest[18] = (BYTE)(state2 >> 16);
-        digest[19] = (BYTE)(state2 >> 24);
-        digest[20] = (BYTE)(state2 >> 32);
-        digest[21] = (BYTE)(state2 >> 40);
-        digest[22] = (BYTE)(state2 >> 48);
-        digest[23] = (BYTE)(state2 >> 56);
-        digest[24] = (BYTE)(state3);
-        digest[25] = (BYTE)(state3 >> 8);
-        digest[26] = (BYTE)(state3 >> 16);
-        digest[27] = (BYTE)(state3 >> 24);
-        digest[28] = (BYTE)(state3 >> 32);
-        digest[29] = (BYTE)(state3 >> 40);
-        digest[30] = (BYTE)(state3 >> 48);
-        digest[31] = (BYTE)(state3 >> 56);
     }
     return isSolved;
 }

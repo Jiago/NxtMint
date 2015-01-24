@@ -69,9 +69,6 @@ public class GpuKnv25 extends GpuFunction {
     /** Hash target */
     private final byte[] target = new byte[32];
     
-    /** Hash digest */
-    private final long[] output = new long[4];
-    
     /** TRUE if the target is met */
     private final boolean[] done = new boolean[1];
     
@@ -169,51 +166,6 @@ public class GpuKnv25 extends GpuFunction {
     @Override
     public long getNonce() {
         return nonce[0];
-    }
-
-    /**
-     * Return the solution digest
-     * 
-     * @return                      Hash digest
-     */
-    @Override
-    public byte[] getDigest() {
-        byte[] outputBytes = new byte[32];
-        if (done[0]) {
-            outputBytes[0] = (byte)(output[0]);
-            outputBytes[1] = (byte)(output[0] >> 8);
-            outputBytes[2] = (byte)(output[0] >> 16);
-            outputBytes[3] = (byte)(output[0] >> 24);
-            outputBytes[4] = (byte)(output[0] >> 32);
-            outputBytes[5] = (byte)(output[0] >> 40);
-            outputBytes[6] = (byte)(output[0] >> 48);
-            outputBytes[7] = (byte)(output[0] >> 56);
-            outputBytes[8] = (byte)(output[1]);
-            outputBytes[9] = (byte)(output[1] >> 8);
-            outputBytes[10] = (byte)(output[1] >> 16);
-            outputBytes[11] = (byte)(output[1] >> 24);
-            outputBytes[12] = (byte)(output[1] >> 32);
-            outputBytes[13] = (byte)(output[1] >> 40);
-            outputBytes[14] = (byte)(output[1] >> 48);
-            outputBytes[15] = (byte)(output[1] >> 56);
-            outputBytes[16] = (byte)(output[2]);
-            outputBytes[17] = (byte)(output[2] >> 8);
-            outputBytes[18] = (byte)(output[2] >> 16);
-            outputBytes[19] = (byte)(output[2] >> 24);
-            outputBytes[20] = (byte)(output[2] >> 32);
-            outputBytes[21] = (byte)(output[2] >> 40);
-            outputBytes[22] = (byte)(output[2] >> 48);
-            outputBytes[23] = (byte)(output[2] >> 56);
-            outputBytes[24] = (byte)(output[3]);
-            outputBytes[25] = (byte)(output[3] >> 8);
-            outputBytes[26] = (byte)(output[3] >> 16);
-            outputBytes[27] = (byte)(output[3] >> 24);
-            outputBytes[28] = (byte)(output[3] >> 32);
-            outputBytes[29] = (byte)(output[3] >> 40);
-            outputBytes[30] = (byte)(output[3] >> 48);
-            outputBytes[31] = (byte)(output[3] >> 56);
-        }
-        return outputBytes;
     }
     
     /**
@@ -397,10 +349,6 @@ public class GpuKnv25 extends GpuFunction {
         }
         if (isSolved) {
             done[0] = true;
-            output[0] = state0;
-            output[1] = state1;
-            output[2] = state2;
-            output[3] = state3;
             nonce[0] = input[0] + (long)getGlobalId();
         }
     }

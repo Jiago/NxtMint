@@ -126,15 +126,6 @@ public abstract class HashFunction {
     }
     
     /**
-     * Return the solution digest
-     * 
-     * @return                      Hash digest
-     */
-    public byte[] getDigest() {
-        return digest;
-    }
-    
-    /**
      * Return the execution count
      * 
      * @return                      Kernel execution count

@@ -79,9 +79,6 @@ public class GpuSha256 extends GpuFunction {
     /** Hash target */
     private final byte[] target = new byte[32];
     
-    /** Hash digest */
-    private final byte[] output = new byte[32];
-    
     /** TRUE if the target is met */
     private final boolean[] done = new boolean[1];
     
@@ -182,16 +179,6 @@ public class GpuSha256 extends GpuFunction {
     @Override
     public long getNonce() {
         return nonce[0];
-    }
-
-    /**
-     * Return the solution digest
-     * 
-     * @return                      Hash digest
-     */
-    @Override
-    public byte[] getDigest() {
-        return output;
     }
     
     /**
@@ -317,41 +304,6 @@ public class GpuSha256 extends GpuFunction {
         }
         if (isSolved) {
             done[0] = true;
-            //
-            // Create the output digest bytes
-            //
-            output[0] = (byte)(h0 >>> 24); 
-            output[1] = (byte)(h0 >>> 16);
-            output[2] = (byte)(h0 >>> 8);
-            output[3] = (byte) h0;
-            output[4] = (byte)(h1 >>> 24);
-            output[5] = (byte)(h1 >>> 16);
-            output[6] = (byte)(h1 >>> 8);
-            output[7] = (byte) h1;
-            output[8] = (byte)(h2 >>> 24);
-            output[9] = (byte)(h2 >>> 16);
-            output[10] = (byte)(h2 >>> 8);
-            output[11] = (byte) h2;
-            output[12] = (byte)(h3 >>> 24);
-            output[13] = (byte)(h3 >>> 16); 
-            output[14] = (byte)(h3 >>> 8);
-            output[15] = (byte) h3;
-            output[16] = (byte)(h4 >>> 24);
-            output[17] = (byte)(h4 >>> 16); 
-            output[18] = (byte)(h4 >>> 8);
-            output[19] = (byte) h4;
-            output[20] = (byte)(h5 >>> 24);
-            output[21] = (byte)(h5 >>> 16); 
-            output[22] = (byte)(h5 >>> 8);
-            output[23] = (byte) h5;
-            output[24] = (byte)(h6 >>> 24);
-            output[25] = (byte)(h6 >>> 16); 
-            output[26] = (byte)(h6 >>> 8);
-            output[27] = (byte) h6;
-            output[28] = (byte)(h7 >>> 24);
-            output[29] = (byte)(h7 >>> 16); 
-            output[30] = (byte)(h7 >>> 8);
-            output[31] = (byte) h7;
             //
             // Save the nonce in little-endian format
             //

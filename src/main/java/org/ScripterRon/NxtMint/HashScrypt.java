@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 import javax.crypto.Mac;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 
 /**
  * SCRYPT hash algorithm for Monetary System currencies
@@ -43,6 +43,9 @@ public class HashScrypt extends HashFunction {
     private final int[] X = new int[32];
     private final int[] V = new int[32 * 1024];
     
+    /** JNI hash function */
+    private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
+    
     /**
      * Create a Scrypt hash function
      */
@@ -63,16 +66,34 @@ public class HashScrypt extends HashFunction {
      */
     @Override
     public boolean hash(byte[] inputBytes, byte[] targetBytes, long initialNonce) {
+        int count = 32*1024;
+        boolean meetsTarget = false;
+        //
+        // Use the JNI hash function if it is available
+        //
+        if (jniAvailable) {
+            JniHashResult result = JniHash(inputBytes, targetBytes, initialNonce, count);
+            if (result != null) {
+                meetsTarget = result.isSolved();
+                nonce = result.getNonce();
+                hashCount = result.getCount();
+            } else {
+                log.error("No result returned by JniScrypt");
+            }
+            return meetsTarget;
+        }
+        //
+        // Use the Java hash function
+        //
         System.arraycopy(inputBytes, 0, input, 0, 40);
         System.arraycopy(targetBytes, 0, target, 0, 32);
         nonce = initialNonce;
         hashCount = 0;
-        boolean meetsTarget = false;
         Thread thread = Thread.currentThread();
         //
         // Keep hashing until we meet the target or the maximum loop count is reached
         //
-        for (int i=0; i<64*1024 && !meetsTarget; i++) {
+        for (int i=0; i<count && !meetsTarget; i++) {
             if (thread.isInterrupted())
                 break;
             meetsTarget = doHash();

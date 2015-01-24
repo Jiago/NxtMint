@@ -38,15 +38,15 @@ public class HashKnv25 extends HashFunction {
     /** Target data */
     private final byte[] target = new byte[32];
     
+    /** JNI hash function */
+    private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
+    
     /**
      * Create a new KECCAK25 hash function
      */
     public HashKnv25() {
         super();
     }
-    
-    /** JNI hash function */
-    private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
 
     /**
      * Hash the input bytes
@@ -57,13 +57,13 @@ public class HashKnv25 extends HashFunction {
      */
     @Override
     public boolean hash(byte[] inputBytes, byte[] targetBytes, long initialNonce) {
-        int count = 512*1024;
+        int count = 1024*1024;
         boolean meetsTarget = false;
         //
         // Use the JNI hash function if it is available
         //
         if (jniAvailable) {
-            JniHashResult result = JniHash(inputBytes, targetBytes, initialNonce, count);
+            JniHashResult result = JniHash(inputBytes, targetBytes, initialNonce, 2*count);
             if (result != null) {
                 meetsTarget = result.isSolved();
                 nonce = result.getNonce();
