@@ -99,7 +99,12 @@ public class GpuSha256 extends GpuFunction {
         // Calculate the local and global sizes
         //
         OpenCLDevice clDevice = gpuDevice.getDevice();
-        count = Main.gpuIntensity*1024;
+        if (Main.gpuIntensity > 2000000) {
+            log.warn("GPU intensity may not exceed 2,000,000 - setting to maximum");
+            count = 2000000*1024;
+        } else {
+            count = Main.gpuIntensity*1024;
+        }
         int localSize = gpuDevice.getWorkGroupSize();
         int globalSize;
         if (gpuDevice.getWorkGroupCount() != 0)

@@ -14,16 +14,59 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 /**
  * Currency minting hash functions using the CPU
  */
 public abstract class HashFunction {
     
+    /** JNI library available */
+    protected static boolean jniAvailable = false;
+    
+    /** JNI load attempted */
+    private static boolean jniAttempted = false;
+    
+    /** Hash count */
+    protected int hashCount;
+    
+    /** Nonce */
+    protected long nonce;
+    
+    /** Hash digest */
+    protected final byte[] digest = new byte[32];
+    
     /**
      * Private constructor for use by subclasses
      */
     protected HashFunction() {
+        //
+        // Load the JNI library if it hasn't been done yet
+        //
+        if (!jniAttempted) {
+            jniAttempted = true;
+            String libraryName = null;
+            if (System.getProperty("os.name").contains("Windows")) {
+                if (System.getProperty("sun.arch.data.model").equals("64"))
+                    libraryName = "NxtMint_x86_64";
+                else
+                    libraryName = "NxtMint_x86";
+            }
+            if (libraryName != null) {
+                try {
+                    System.loadLibrary(libraryName);
+                    jniAvailable = true;
+                    log.info(String.format("JNI library %s loaded - using native hash routines", 
+                                           libraryName));
+                } catch (UnsatisfiedLinkError exc) {
+                    log.info(String.format("Native library %s is not available - using Java hash routines", 
+                                           libraryName));
+                } catch (Exception exc) {
+                    log.error(String.format("Unable to load native library %s - using Java hash routines",
+                                            libraryName), exc);
+                }
+            }
+        }
     }
     
     /**
@@ -67,7 +110,36 @@ public abstract class HashFunction {
      * Hash the input bytes
      * 
      * @param       input           Input bytes
-     * @return                      Hash output
+     * @param       target          Target bytes
+     * @param       nonce           Initial nonce
+     * @return                      TRUE if the target was met
      */
-    public abstract byte[] hash(byte[] input);
+    public abstract boolean hash(byte[] input, byte[] target, long nonce);
+    
+    /**
+     * Return the nonce used to solve the hash
+     * 
+     * @return                      Nonce
+     */
+    public long getNonce() {
+        return nonce;
+    }
+    
+    /**
+     * Return the solution digest
+     * 
+     * @return                      Hash digest
+     */
+    public byte[] getDigest() {
+        return digest;
+    }
+    
+    /**
+     * Return the execution count
+     * 
+     * @return                      Kernel execution count
+     */
+    public int getCount() {
+        return hashCount;
+    }
 }

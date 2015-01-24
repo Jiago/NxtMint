@@ -24,14 +24,14 @@ import java.security.NoSuchAlgorithmException;
 public class HashSha256 extends HashFunction {
     
     /** SHA-256 message digest */
-    private final MessageDigest digest;
+    private final MessageDigest md;
         
     /**
      * Create a SHA-256 hash function
      */
     public HashSha256() {
         try {
-            digest = MessageDigest.getInstance("SHA-256");
+            md = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException exc) {
             throw new IllegalStateException("Unable to get SHA-256 digest", exc);
         }
@@ -40,11 +40,58 @@ public class HashSha256 extends HashFunction {
     /**
      * Hash the input bytes
      * 
-     * @param       input           Input bytes
+     * @param       input           Input bytes (40 bytes)
+     * @param       target          Target (32 bytes)
+     * @param       initialNonce    Initial nonce
      * @return                      Hash digest (32 bytes)
      */
     @Override
-    public byte[] hash(byte[] input) {
-        return digest.digest(input);
+    public boolean hash(byte[] input, byte[] target, long initialNonce) {
+        nonce = initialNonce;
+        hashCount = 0;
+        boolean meetsTarget = false;
+        Thread thread = Thread.currentThread();
+        //
+        // Keep hashing until we meet the target or the maximum loop count is reached
+        //
+        for (int i=0; i<512*1024 && !meetsTarget; i++) {
+            if (thread.isInterrupted())
+                break;
+            //
+            // Note that the nonce is stored in the first 8 bytes of the input data.  We will increment
+            // it each time through the hash loop.
+            //
+            nonce++;
+            input[0] = (byte)nonce;
+            input[1] = (byte)(nonce>>8);
+            input[2] = (byte)(nonce>>16);
+            input[3] = (byte)(nonce>>24);
+            input[4] = (byte)(nonce>>32);
+            input[5] = (byte)(nonce>>40);
+            input[6] = (byte)(nonce>>48);
+            input[7] = (byte)(nonce>>56);
+            //
+            // Do the hash
+            //
+            byte[] output = md.digest(input);
+            hashCount++;
+            //
+            // Check if we have met the target
+            //
+            meetsTarget = true;
+            for (int j=31; j>=0; j--) {
+                int b0 = (int)output[j]&0xff;
+                int b1 = (int)target[j]&0xff;
+                if (b0 < b1)
+                    break;
+                if (b0 > b1) {
+                    meetsTarget = false;
+                    break;
+                }
+            }
+            if (meetsTarget)
+                System.arraycopy(output, 0, digest, 0, 32);
+        }
+        return meetsTarget;
     }
 }

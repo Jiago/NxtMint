@@ -27,8 +27,13 @@ import java.util.Arrays;
  * 
  * Distributed as part of the Nxt reference software (NRS)
  */
-@SuppressWarnings({"PointlessBitwiseExpression", "PointlessArithmeticExpression"})
 public class HashScrypt extends HashFunction {
+    
+    /** Input data */
+    private final byte[] input = new byte[40];
+    
+    /** Target data */
+    private final byte[] target = new byte[32];
 
     /** Scrypt message digest */
     private final Mac mac;
@@ -51,17 +56,52 @@ public class HashScrypt extends HashFunction {
 
     /**
      * Hash the input bytes
-     * @param       input           Input (length must not exceed 40 bytes)
-     * @return                      Hash output (32 bytes)
+     * @param       inputBytes      Input (40 bytes)
+     * @param       targetBytes     Target (32 bytes)
+     * @param       initialNonce    Initial nonce
+     * @return                      TRUE if the target was met
      */
     @Override
-    public byte[] hash(final byte input[]) {
+    public boolean hash(byte[] inputBytes, byte[] targetBytes, long initialNonce) {
+        System.arraycopy(inputBytes, 0, input, 0, 40);
+        System.arraycopy(targetBytes, 0, target, 0, 32);
+        nonce = initialNonce;
+        hashCount = 0;
+        boolean meetsTarget = false;
+        Thread thread = Thread.currentThread();
+        //
+        // Keep hashing until we meet the target or the maximum loop count is reached
+        //
+        for (int i=0; i<64*1024 && !meetsTarget; i++) {
+            if (thread.isInterrupted())
+                break;
+            meetsTarget = doHash();
+            hashCount++;
+        }
+        return meetsTarget;
+    }
+    
+    /**
+     * Perform a single hash
+     * 
+     * @return                      TRUE if the target is met
+     */
+    private boolean doHash() {    
         int i, j, k;
-        if (input.length > 40)
-            throw new IllegalArgumentException("Input length is greater than 40 bytes");
-        System.arraycopy(input, 0, B, 0, input.length);
-        if (input.length<40)
-            Arrays.fill(B, input.length, 40, (byte)0);
+        //
+        // Note that the nonce is stored in the first 8 bytes of the input data.  We will increment
+        // it each time through the hash loop.
+        //
+        nonce++;
+        B[0] = (byte)nonce;
+        B[1] = (byte)(nonce>>8);
+        B[2] = (byte)(nonce>>16);
+        B[3] = (byte)(nonce>>24);
+        B[4] = (byte)(nonce>>32);
+        B[5] = (byte)(nonce>>40);
+        B[6] = (byte)(nonce>>48);
+        B[7] = (byte)(nonce>>56);
+        System.arraycopy(input, 8, B, 8, 32);
         try {
             mac.init(new SecretKeySpec(B, 0, 40, "HmacSHA256"));
         } catch (InvalidKeyException e) {
@@ -79,7 +119,7 @@ public class HashScrypt extends HashFunction {
                 throw new IllegalStateException(e);
             }
             for (j=0; j<8; j++) {
-                X[i*8+j] = (H[j*4+0] & 0xff) << 0
+                X[i*8+j] = (H[j*4] & 0xff)
                         | (H[j*4+1] & 0xff) << 8
                         | (H[j*4+2] & 0xff) << 16
                         | (H[j*4+3] & 0xff) << 24;
@@ -98,10 +138,10 @@ public class HashScrypt extends HashFunction {
             xorSalsa8(16, 0);
         }
         for (i=0; i<32; i++) {
-            B[i*4+0] = (byte) (X[i] >> 0);
-            B[i*4+1] = (byte) (X[i] >> 8);
-            B[i*4+2] = (byte) (X[i] >> 16);
-            B[i*4+3] = (byte) (X[i] >> 24);
+            B[i*4] = (byte)(X[i]);
+            B[i*4+1] = (byte)(X[i] >> 8);
+            B[i*4+2] = (byte)(X[i] >> 16);
+            B[i*4+3] = (byte)(X[i] >> 24);
         }
         B[128+3] = 1;
         mac.update(B, 0, 128 + 4);
@@ -110,7 +150,27 @@ public class HashScrypt extends HashFunction {
         } catch (ShortBufferException e) {
             throw new IllegalStateException(e);
         }
-        return H;
+                //
+        // Check if we met the target
+        //
+        boolean isSolved = true;
+        long check;
+        for (i=31; i>=0; i--) {
+            int b0 = (int)H[i]&0xff;
+            int b1 = (int)target[i]&0xff;
+            if (b0 < b1)
+                break;
+            if (b0 > b1) {
+                isSolved = false;
+                break;
+            }
+        }
+        //
+        // Set the digest if we have a match
+        //
+        if (isSolved)
+            System.arraycopy(H, 0, digest, 0, 32);
+        return isSolved;
     }
 
     private void xorSalsa8(int di, int xi) {

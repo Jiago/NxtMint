@@ -19,7 +19,6 @@ import static org.ScripterRon.NxtMint.Main.log;
 import org.ScripterRon.NxtCore.MintingTarget;
 
 import com.amd.aparapi.Kernel;
-import com.amd.aparapi.Range;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -124,10 +123,7 @@ public class MintWorker implements Runnable {
                         log.debug(String.format("Worker %d abandoning counter %d", workerId, counter));
                         break;
                     }
-                    if (nonce == 0 || (gpuWorker&!gpuDisabled))
-                        nonce = (ThreadLocalRandom.current().nextLong()&0x00ffffffffffffffL)|((long)workerId<<56);
-                    else
-                        nonce++;
+                    nonce = (ThreadLocalRandom.current().nextLong()&0xf0ffffffffffffffL)|((long)workerId<<56);
                     ByteBuffer buffer = ByteBuffer.wrap(hashBytes);
                     buffer.order(ByteOrder.LITTLE_ENDIAN);
                     buffer.putLong(nonce);
@@ -212,19 +208,10 @@ public class MintWorker implements Runnable {
      * @return                      TRUE if the hash satisfies the target
      */
     private boolean cpuHash(byte[] hashBytes, byte[] targetBytes) {
-        hashCount++;
-        byte[] hashDigest = hashFunction.hash(hashBytes);
-        boolean meetsTarget = true;
-        for (int i=hashDigest.length-1; i>=0; i--) {
-            int byte1 = (hashDigest[i]&0xff);
-            int byte2 = (targetBytes[i]&0xff);
-            if (byte1 < byte2)
-                break;
-            if (byte1 > byte2) {
-                meetsTarget = false;
-                break;
-            }
-        }
+        boolean meetsTarget = hashFunction.hash(hashBytes, targetBytes, nonce);
+        hashCount += hashFunction.getCount();
+        if (meetsTarget)
+            nonce = hashFunction.getNonce();
         return meetsTarget;
     }
     

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
@@ -24,69 +25,121 @@ public class HashKnv25 extends HashFunction {
 
     /** Hash constants */
     private static final long[] constants = {
-            1L, 32898L, -9223372036854742902L, -9223372034707259392L, 32907L,
-            2147483649L, -9223372034707259263L, -9223372036854743031L, 138L, 136L,
-            2147516425L, 2147483658L, 2147516555L, -9223372036854775669L, -9223372036854742903L,
-            -9223372036854743037L, -9223372036854743038L, -9223372036854775680L, 32778L, -9223372034707292150L,
-            -9223372034707259263L, -9223372036854742912L, 2147483649L, -9223372034707259384L, 1L
+        1L, 32898L, -9223372036854742902L, -9223372034707259392L, 32907L,
+        2147483649L, -9223372034707259263L, -9223372036854743031L, 138L, 136L,
+        2147516425L, 2147483658L, 2147516555L, -9223372036854775669L, -9223372036854742903L,
+        -9223372036854743037L, -9223372036854743038L, -9223372036854775680L, 32778L, -9223372034707292150L,
+        -9223372034707259263L, -9223372036854742912L, 2147483649L, -9223372034707259384L, 1L
     };
+    
+    /** Input data */
+    private final byte[] input = new byte[40];
+    
+    /** Target data */
+    private final byte[] target = new byte[32];
     
     /**
      * Create a new KECCAK25 hash function
      */
     public HashKnv25() {
+        super();
     }
+    
+    /** JNI hash function */
+    private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
 
     /**
      * Hash the input bytes
-     * @param       input           Input bytes (40 bytes)
-     * @return                      Hash output (32 bytes)
+     * @param       inputBytes      Input bytes (40 bytes)
+     * @param       targetBytes     Target bytes (32 bytes)
+     * @param       initialNonce    Initial nonce
+     * @return                      TRUE if the target is met
      */
     @Override
-    public byte[] hash(final byte input[]) {
+    public boolean hash(byte[] inputBytes, byte[] targetBytes, long initialNonce) {
+        int count = 512*1024;
+        boolean meetsTarget = false;
+        //
+        // Use the JNI hash function if it is available
+        //
+        if (jniAvailable) {
+            JniHashResult result = JniHash(inputBytes, targetBytes, initialNonce, count);
+            if (result != null) {
+                meetsTarget = result.isSolved();
+                nonce = result.getNonce();
+                hashCount = result.getCount();
+            } else {
+                log.error("No result returned by JniKnv25");
+            }
+            return meetsTarget;
+        }
+        //
+        // Use the Java hash function
+        //
+        System.arraycopy(inputBytes, 0, input, 0, 40);
+        System.arraycopy(targetBytes, 0, target, 0, 32);
+        nonce = initialNonce;
+        hashCount = 0;
+        
+        Thread thread = Thread.currentThread();
+        //
+        // Keep hashing until we meet the target or the maximum loop count is reached
+        //
+        for (int i=0; i<count && !meetsTarget; i++) {
+            if (thread.isInterrupted())
+                break;
+            meetsTarget = doHash();
+            hashCount++;
+        }
+        return meetsTarget;
+    }
+    
+    /**
+     * Perform a single hash
+     * 
+     * @return                      TRUE if the target is met
+     */
+    private boolean doHash() {
         //
         // Initialize the hash state
         //
-        long state0 = ((long)(input[0] & 0xFF)) | 
-                        (((long)(input[1] & 0xFF)) << 8) | 
-                        (((long)(input[2] & 0xFF)) << 16) | 
-                        (((long)(input[3] & 0xFF)) << 24) | 
-                        (((long)(input[4] & 0xFF)) << 32) | 
-                        (((long)(input[5] & 0xFF)) << 40) | 
-                        (((long)(input[6] & 0xFF)) << 48) | 
-                        (((long)(input[7] & 0xFF)) << 56);
-        long state1 = ((long)(input[8] & 0xFF)) | 
-                        (((long)(input[9] & 0xFF)) << 8) | 
-                        (((long)(input[10] & 0xFF)) << 16) | 
-                        (((long)(input[11] & 0xFF)) << 24) | 
-                        (((long)(input[12] & 0xFF)) << 32) | 
-                        (((long)(input[13] & 0xFF)) << 40) | 
-                        (((long)(input[14] & 0xFF)) << 48) | 
-                        (((long)(input[15] & 0xFF)) << 56);
-        long state2 = ((long)(input[16] & 0xFF)) | 
-                        (((long)(input[17] & 0xFF)) << 8) | 
-                        (((long)(input[18] & 0xFF)) << 16) | 
-                        (((long)(input[19] & 0xFF)) << 24) | 
-                        (((long)(input[20] & 0xFF)) << 32) | 
-                        (((long)(input[21] & 0xFF)) << 40) | 
-                        (((long)(input[22] & 0xFF)) << 48) | 
-                        (((long)(input[23] & 0xFF)) << 56);
-        long state3 = ((long)(input[24] & 0xFF)) | 
-                        (((long)(input[25] & 0xFF)) << 8) | 
-                        (((long)(input[26] & 0xFF)) << 16) | 
-                        (((long)(input[27] & 0xFF)) << 24) | 
-                        (((long)(input[28] & 0xFF)) << 32) | 
-                        (((long)(input[29] & 0xFF)) << 40) | 
-                        (((long)(input[30] & 0xFF)) << 48) | 
-                        (((long)(input[31] & 0xFF)) << 56);
-        long state4 = ((long)(input[32] & 0xFF)) | 
-                        (((long)(input[33] & 0xFF)) << 8) | 
-                        (((long)(input[34] & 0xFF)) << 16) | 
-                        (((long)(input[35] & 0xFF)) << 24) | 
-                        (((long)(input[36] & 0xFF)) << 32) | 
-                        (((long)(input[37] & 0xFF)) << 40) | 
-                        (((long)(input[38] & 0xFF)) << 48) | 
-                        (((long)(input[39] & 0xFF)) << 56);      
+        // Note that the nonce is stored in the first 8 bytes of the input data.  We will increment
+        // it each time through the hash loop.
+        //
+        nonce++;
+        long state0 = nonce;
+        long state1 = ((long)input[8] & 0xFF) | 
+                        (((long)input[9] & 0xFF) << 8) | 
+                        (((long)input[10] & 0xFF) << 16) | 
+                        (((long)input[11] & 0xFF) << 24) | 
+                        (((long)input[12] & 0xFF) << 32) | 
+                        (((long)input[13] & 0xFF) << 40) | 
+                        (((long)input[14] & 0xFF) << 48) | 
+                        (((long)input[15] & 0xFF) << 56);
+        long state2 = ((long)input[16] & 0xFF) | 
+                        (((long)input[17] & 0xFF) << 8) | 
+                        (((long)input[18] & 0xFF) << 16) | 
+                        (((long)input[19] & 0xFF) << 24) | 
+                        (((long)input[20] & 0xFF) << 32) | 
+                        (((long)input[21] & 0xFF) << 40) | 
+                        (((long)input[22] & 0xFF) << 48) | 
+                        (((long)input[23] & 0xFF) << 56);
+        long state3 = ((long)input[24] & 0xFF) | 
+                        (((long)input[25] & 0xFF) << 8) | 
+                        (((long)input[26] & 0xFF) << 16) | 
+                        (((long)input[27] & 0xFF) << 24) | 
+                        (((long)input[28] & 0xFF) << 32) | 
+                        (((long)input[29] & 0xFF) << 40) | 
+                        (((long)input[30] & 0xFF) << 48) | 
+                        (((long)input[31] & 0xFF) << 56);
+        long state4 = ((long)input[32] & 0xFF) | 
+                        (((long)input[33] & 0xFF) << 8) | 
+                        (((long)input[34] & 0xFF) << 16) | 
+                        (((long)input[35] & 0xFF) << 24) | 
+                        (((long)input[36] & 0xFF) << 32) | 
+                        (((long)input[37] & 0xFF) << 40) | 
+                        (((long)input[38] & 0xFF) << 48) | 
+                        (((long)input[39] & 0xFF) << 56);      
         long state5 = 1;
         long state16 = -9223372036854775808L;
         long state6=0, state7=0, state8=0, state9=0, state10=0, state11=0, state12=0, 
@@ -203,41 +256,67 @@ public class HashKnv25 extends HashFunction {
             state24 ^= ~t13 & t18;
         }
         //
-        // Return the hash digest
+        // Check if we met the target
         //
-        byte[] outputBytes = new byte[32];
-        outputBytes[0] = (byte)(state0);
-        outputBytes[1] = (byte)(state0 >> 8);
-        outputBytes[2] = (byte)(state0 >> 16);
-        outputBytes[3] = (byte)(state0 >> 24);
-        outputBytes[4] = (byte)(state0 >> 32);
-        outputBytes[5] = (byte)(state0 >> 40);
-        outputBytes[6] = (byte)(state0 >> 48);
-        outputBytes[7] = (byte)(state0 >> 56);
-        outputBytes[8] = (byte)(state1);
-        outputBytes[9] = (byte)(state1 >> 8);
-        outputBytes[10] = (byte)(state1 >> 16);
-        outputBytes[11] = (byte)(state1 >> 24);
-        outputBytes[12] = (byte)(state1 >> 32);
-        outputBytes[13] = (byte)(state1 >> 40);
-        outputBytes[14] = (byte)(state1 >> 48);
-        outputBytes[15] = (byte)(state1 >> 56);
-        outputBytes[16] = (byte)(state2);
-        outputBytes[17] = (byte)(state2 >> 8);
-        outputBytes[18] = (byte)(state2 >> 16);
-        outputBytes[19] = (byte)(state2 >> 24);
-        outputBytes[20] = (byte)(state2 >> 32);
-        outputBytes[21] = (byte)(state2 >> 40);
-        outputBytes[22] = (byte)(state2 >> 48);
-        outputBytes[23] = (byte)(state2 >> 56);
-        outputBytes[24] = (byte)(state3);
-        outputBytes[25] = (byte)(state3 >> 8);
-        outputBytes[26] = (byte)(state3 >> 16);
-        outputBytes[27] = (byte)(state3 >> 24);
-        outputBytes[28] = (byte)(state3 >> 32);
-        outputBytes[29] = (byte)(state3 >> 40);
-        outputBytes[30] = (byte)(state3 >> 48);
-        outputBytes[31] = (byte)(state3 >> 56);            
-        return outputBytes;
+        boolean isSolved = true;
+        long check;
+        checkLoop: for (i=3; i>=0; i--) {
+            if (i == 0)
+                check = state0;
+            else if (i == 1)
+                check = state1;
+            else if (i == 2)
+                check = state2;
+            else
+                check = state3;
+            for (int j=7; j>=0; j--) {
+                int b0 = (int)(check>>(j*8))&0xff;
+                int b1 = (int)(target[i*8+j])&0xff;
+                if (b0 < b1)
+                    break checkLoop;
+                if (b0 > b1) {
+                    isSolved = false;
+                    break checkLoop;
+                }
+            }
+        }
+        //
+        // Set the digest if we have a match
+        //
+        if (isSolved) {
+            digest[0] = (byte)(state0);
+            digest[1] = (byte)(state0 >> 8);
+            digest[2] = (byte)(state0 >> 16);
+            digest[3] = (byte)(state0 >> 24);
+            digest[4] = (byte)(state0 >> 32);
+            digest[5] = (byte)(state0 >> 40);
+            digest[6] = (byte)(state0 >> 48);
+            digest[7] = (byte)(state0 >> 56);
+            digest[8] = (byte)(state1);
+            digest[9] = (byte)(state1 >> 8);
+            digest[10] = (byte)(state1 >> 16);
+            digest[11] = (byte)(state1 >> 24);
+            digest[12] = (byte)(state1 >> 32);
+            digest[13] = (byte)(state1 >> 40);
+            digest[14] = (byte)(state1 >> 48);
+            digest[15] = (byte)(state1 >> 56);
+            digest[16] = (byte)(state2);
+            digest[17] = (byte)(state2 >> 8);
+            digest[18] = (byte)(state2 >> 16);
+            digest[19] = (byte)(state2 >> 24);
+            digest[20] = (byte)(state2 >> 32);
+            digest[21] = (byte)(state2 >> 40);
+            digest[22] = (byte)(state2 >> 48);
+            digest[23] = (byte)(state2 >> 56);
+            digest[24] = (byte)(state3);
+            digest[25] = (byte)(state3 >> 8);
+            digest[26] = (byte)(state3 >> 16);
+            digest[27] = (byte)(state3 >> 24);
+            digest[28] = (byte)(state3 >> 32);
+            digest[29] = (byte)(state3 >> 40);
+            digest[30] = (byte)(state3 >> 48);
+            digest[31] = (byte)(state3 >> 56); 
+        }
+        return isSolved;
     }
 }

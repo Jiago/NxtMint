@@ -164,7 +164,7 @@ public class Mint {
                     } catch (NxtException exc) {
                         int errCode = exc.getReasonCode();
                         if (errCode != 0) {
-                            log.error("Server rejected 'currencyMint' transaction - discarding", exc);
+                            log.error("Server rejected 'currencyMint' transaction - discarding");
                             submitted = true;
                             pending.remove(0);
                         } else {
