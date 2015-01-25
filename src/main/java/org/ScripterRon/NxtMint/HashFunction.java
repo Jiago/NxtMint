@@ -41,16 +41,23 @@ public abstract class HashFunction {
      */
     protected HashFunction() {
         //
-        // Load the JNI library if it hasn't been done yet
+        // Load the JNI library
         //
         if (!jniAttempted) {
             jniAttempted = true;
             String libraryName = null;
-            if (System.getProperty("os.name").contains("Windows")) {
-                if (System.getProperty("sun.arch.data.model").equals("64"))
-                    libraryName = "NxtMint_x86_64";
-                else
-                    libraryName = "NxtMint_x86";
+            String osName = System.getProperty("os.name");
+            if (osName != null) {
+                osName = osName.toLowerCase();
+                String dataModel = System.getProperty("sun.arch.data.model");
+                if (dataModel == null)
+                    dataModel = "32";
+                if (osName.contains("windows") || osName.contains("linux")) {
+                    if (dataModel.equals("64"))
+                        libraryName = "NxtMint_x86_64";
+                    else
+                        libraryName = "NxtMint_x86";
+                }
             }
             if (libraryName != null) {
                 try {
