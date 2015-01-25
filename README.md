@@ -86,7 +86,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
     
 Sample Windows shortcut set to start in the directory containing the unpacked NxtMint files:	
 
-	java -Xmx256m -Djava.library.path=aparapi -jar NxtMint-1.0.0.jar   
+	java -Xmx256m -Djava.library.path="aparapi;jni" -jar NxtMint-1.3.0.jar   
 
 If you are using OpenCL, the OpenCL library must be in PATH (Windows) or LD_LIBRARY_PATH (Linux).  
 

@@ -3,7 +3,7 @@ NxtMint Change Log
 
 Version 1.3.0
   - Add work group count parameter to the gpuDevice configuration option
-  - Native support for KECCAK25 and SCRYPT on Windows (32-bit and 64-bit)
+  - Native CPU support for KECCAK25 and SCRYPT on Windows and Linux (32-bit and 64-bit)
   
 Version 1.2.0
   - GPU support for SCRYPT
