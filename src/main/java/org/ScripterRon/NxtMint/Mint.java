@@ -31,30 +31,33 @@ import java.util.concurrent.ArrayBlockingQueue;
  * threads to perform the hash functions.
  */
 public class Mint {
-    
+
     /** Mint thread */
     private static Thread mintThread;
-    
+
     /** Thread list */
     private static final List<MintWorker> workers = new ArrayList<>();
-    
+
     /** Thread group */
     private static final ThreadGroup threadGroup = new ThreadGroup("Workers");
-    
+
     /** Solution queue */
     private static final ArrayBlockingQueue<Solution> solutions = new ArrayBlockingQueue<>(10);
-    
+
     /** Pending queue */
     private static final List<Solution> pending = new LinkedList<>();
-    
+
     /** Block height at last solution submission */
     private static int submitHeight;
-    
+
     /** Counter at last solution submission */
     private static long submitCounter;
-    
+
     /** Current solution counter */
     private static long counter;
+
+    /** Current minting target */
+    public static MintingTarget mintingTarget;
     
     /**
      * Start minting
@@ -120,7 +123,6 @@ public class Mint {
                 // Dispatch the new target if the workers are idle
                 //
                 if (!workDispatched) {
-                    MintingTarget mintingTarget;
                     try {
                         mintingTarget = Nxt.getMintingTarget(Main.currency.getCurrencyId(),
                                                              Main.accountId, Main.mintingUnits);
@@ -181,7 +183,7 @@ public class Mint {
             log.error("Minting controller terminated by exception", exc);
         }
     }
-    
+
     /**
      * Stop minting
      */
@@ -197,10 +199,18 @@ public class Mint {
             //
             // Stop the worker threads
             //
-            for (MintWorker worker : workers)
-                worker.shutdown();
+            workers.stream().forEach((worker) -> worker.shutdown());
         } catch (InterruptedException exc) {
             log.error("Unable to wait for workers to terminate", exc);
         }
+    }
+
+    /**
+     * Return the list of workers
+     * 
+     * @return                      Worker list
+     */
+    public static List<MintWorker> getWorkers() {
+        return workers;
     }
 }

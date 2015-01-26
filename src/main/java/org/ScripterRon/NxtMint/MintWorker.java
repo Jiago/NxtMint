@@ -30,53 +30,54 @@ import java.util.concurrent.ThreadLocalRandom;
  * Mint worker
  */
 public class MintWorker implements Runnable {
-    
+
     /** Worker identifier */
     private final int workerId;
-    
+
     /** GPU worker */
     private final boolean gpuWorker;
-    
+
     /** GPU identifier */
     private int gpuId;
-    
+
     /** GPU disabled */
     private boolean gpuDisabled;
-    
+
     /** GPU disabled time */
     private long gpuDisabledTime;
-    
+
     /** Worker thread */
     private Thread thread;
-    
+
     /** Work queue */
     private final ArrayBlockingQueue<MintingTarget> workQueue = new ArrayBlockingQueue<>(5);
-    
+
     /** Solution queue */
     private final ArrayBlockingQueue<Solution> solutionQueue;
-    
+
     /** CPU hash function */
     private final HashFunction hashFunction;
-    
+
     /** GPU hash function */
     private GpuFunction gpuFunction;
-    
+
     /** Hash count */
-    private long hashCount;
-    
+    private volatile long hashCount;
+
     /** Nonce */
     private long nonce;
-    
+
+    private volatile long startTime;
+
     /**
      * Create a new worker
      * 
-     * @param       workerId        Worker identifier
-     * @param       solutionQueue   Hash solution queue
-     * @param       gpuWorker       TRUE if this is the GPU worker
-     * @param       gpuId           GPU identifier
+     * @param workerId              Worker identifier
+     * @param solutionQueue         Hash solution queue
+     * @param gpuWorker             TRUE if this is the GPU worker
+     * @param gpuId                 GPU identifier
      */
-    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, 
-                                    boolean gpuWorker, int gpuId) {
+    public MintWorker(int workerId, ArrayBlockingQueue<Solution> solutionQueue, boolean gpuWorker, int gpuId) {
         this.workerId = workerId;
         this.solutionQueue = solutionQueue;
         this.gpuWorker = gpuWorker;
@@ -86,7 +87,7 @@ public class MintWorker implements Runnable {
             this.gpuId = gpuId;
         }
     }
-    
+
     /**
      * Start hashing
      */
@@ -107,14 +108,15 @@ public class MintWorker implements Runnable {
                 // Get the next hash target
                 //
                 MintingTarget target = workQueue.take();
-                long counter = target.getCounter()+1;
+                long counter = target.getCounter() + 1;
                 log.debug(String.format("Worker %d starting on counter %d", workerId, counter));
                 byte[] targetBytes = target.getTarget();
                 hashCount = 0;
-                long startTime = System.currentTimeMillis();
+                startTime = System.currentTimeMillis();
                 long statusTime = startTime;
                 //
-                // Hash until the result meets the target, we get a new target or we are interrupted
+                // Hash until the result meets the target, we get a new target
+                // or we are interrupted
                 //
                 while (true) {
                     if (thread.isInterrupted())
@@ -123,7 +125,7 @@ public class MintWorker implements Runnable {
                         log.debug(String.format("Worker %d abandoning counter %d", workerId, counter));
                         break;
                     }
-                    nonce = (ThreadLocalRandom.current().nextLong()&0xf0ffffffffffffffL)|((long)workerId<<56);
+                    nonce = (ThreadLocalRandom.current().nextLong() & 0xf0ffffffffffffffL) | ((long) workerId << 56);
                     ByteBuffer buffer = ByteBuffer.wrap(hashBytes);
                     buffer.order(ByteOrder.LITTLE_ENDIAN);
                     buffer.putLong(nonce);
@@ -149,9 +151,9 @@ public class MintWorker implements Runnable {
                     // Print a status message every 60 seconds
                     //
                     long currentTime = System.currentTimeMillis();
-                    if (currentTime-statusTime > 1*60*1000) {
-                        double count = (double)hashCount;
-                        double rate = count/(double)((currentTime-startTime)/1000);
+                    if (currentTime - statusTime > 1 * 60 * 1000) {
+                        double count = (double) hashCount;
+                        double rate = count / (double) ((currentTime - startTime) / 1000);
                         log.debug(String.format("Worker %d: %,.2f MHash, %,.4f MHash/s", 
                                                 workerId, count/1000000.0, rate/1000000.0));
                         statusTime = currentTime;
@@ -159,7 +161,7 @@ public class MintWorker implements Runnable {
                     //
                     // Re-enable the GPU if we have waited 5 minuts
                     //
-                    if (gpuDisabled && currentTime-gpuDisabledTime > 5*60*1000) {
+                    if (gpuDisabled && currentTime-gpuDisabledTime>5*60*1000) {
                         gpuDisabled = false;
                         gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm(), Main.gpuDeviceList.get(gpuId));
                         log.info("Enabling GPU hashing");
@@ -172,7 +174,7 @@ public class MintWorker implements Runnable {
             log.error(String.format("Worker %d terminated by exception", workerId), exc);
         }
     }
-    
+
     /**
      * Stop hashing
      */
@@ -186,11 +188,11 @@ public class MintWorker implements Runnable {
             log.error("Unable to wait for worker to terminate");
         }
     }
-    
+
     /**
      * New hash target
      * 
-     * @param       target          Minting target
+     * @param target                Minting target
      */
     public void newTarget(MintingTarget target) {
         try {
@@ -199,12 +201,12 @@ public class MintWorker implements Runnable {
             log.error("Unable to add new target to work queue", exc);
         }
     }
-    
+
     /**
      * Hash using CPU threads
      * 
-     * @param       hashBytes       Bytes to be hashed
-     * @param       targetBytes     Target
+     * @param hashBytes             Bytes to be hashed
+     * @param targetBytes           Target
      * @return                      TRUE if the hash satisfies the target
      */
     private boolean cpuHash(byte[] hashBytes, byte[] targetBytes) {
@@ -214,12 +216,12 @@ public class MintWorker implements Runnable {
             nonce = hashFunction.getNonce();
         return meetsTarget;
     }
-    
+
     /**
      * Hash using the GPU
      * 
-     * @param       hashBytes       Bytes to be hashed
-     * @param       targetBytes     Target
+     * @param hashBytes             Bytes to be hashed
+     * @param targetBytes           Target
      * @return                      TRUE if the hash satisfies the target
      */
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
@@ -240,5 +242,52 @@ public class MintWorker implements Runnable {
                 nonce = gpuFunction.getNonce();
         }
         return meetsTarget;
+    }
+
+    /**
+     * Check if this is a GPU worker
+     * 
+     * @return                      TRUE if this is a GPU worker
+     */
+    public boolean isGpuWorker() {
+        return this.gpuWorker;
+    }
+
+    /**
+     * Check if the GPU is disabled
+     * 
+     * @return                      TRUE if the GPU is disabled
+     */
+    public boolean isGpuDisabled() {
+        return this.gpuDisabled;
+    }
+
+    /**
+     * Return the total hash count since the last solution was found
+     * 
+     * @return                      Total hash count
+     */
+    public long getTotalHashes() {
+        return hashCount;
+    }
+
+    /**
+     * Return the hash rate since the last solution was found
+     * 
+     * @return                      Hash rate
+     */
+    public double getRate() {
+        long currentTime = System.currentTimeMillis();
+        double rate = hashCount / (double) ((currentTime - startTime) / 1000);
+        return rate;
+    }
+
+    /**
+     * Return the worker identifier
+     * 
+     * @return                      Worker identifier
+     */
+    public int getWorkerId() {
+        return workerId;
     }
 }

@@ -15,18 +15,40 @@
  */
 package org.ScripterRon.NxtMint;
 
+import org.ScripterRon.NxtCore.MintingTarget;
 import org.ScripterRon.NxtCore.Utils;
 
 import java.io.IOException;
-import java.util.Date;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
-import javax.swing.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Point;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenuBar;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
+import javax.swing.WindowConstants;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableRowSorter;
-import java.awt.*;
-import java.awt.event.*;
 
 /**
  * This is the main application window
@@ -37,16 +59,16 @@ public final class MainWindow extends JFrame implements ActionListener {
     private boolean windowMinimized = false;
 
     /** Table column classes */
-    private static final Class<?>[] columnClasses = {
-        Date.class, String.class, Double.class, Integer.class, Double.class};
+    private static final Class<?>[] columnClasses = 
+        { Date.class, String.class, Double.class, Integer.class, Double.class };
 
     /** Table column names */
-    private static final String[] columnNames = {
-        "Date", "Transaction ID", "Units", "Counter", "Hashes (MH)"};
+    private static final String[] columnNames = 
+        { "Date", "Transaction ID", "Units", "Counter", "Hashes (MH)" };
 
     /** Table column types */
-    private static final int[] columnTypes = {
-        SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT, SizedTable.AMOUNT};
+    private static final int[] columnTypes = 
+        { SizedTable.DATE, SizedTable.IDENTIFIER, SizedTable.AMOUNT, SizedTable.COUNT, SizedTable.AMOUNT };
 
     /** Solution table model */
     private final SolutionTableModel tableModel;
@@ -56,7 +78,23 @@ public final class MainWindow extends JFrame implements ActionListener {
 
     /** Solution scroll pane */
     private final JScrollPane scrollPane;
-    
+
+    /** Status panel fields */
+    private final JLabel serverAddressLabel = new JLabel();
+    private final JLabel accountLabel = new JLabel();
+    private final JLabel currencyLabel = new JLabel();
+    private final JLabel unitsLabel = new JLabel();
+    private final JLabel difficultyLabel = new JLabel();
+
+    private final JLabel hashrateLabel = new JLabel();
+    private final JLabel totalHashesLabel = new JLabel();
+    private final JLabel advancementLabel = new JLabel();
+    private final JLabel nbCpuWorkersLabel = new JLabel();
+    private final JLabel nbGpuWorkersLabel = new JLabel();
+
+    /** Current worker details dialog - set when dialog starts and cleared when dialog exits */
+    public WorkerDetailsDialog workerDetailsDialog;
+
     /**
      * Create the application window
      */
@@ -97,13 +135,19 @@ public final class MainWindow extends JFrame implements ActionListener {
         //
         JMenuBar menuBar = new JMenuBar();
         menuBar.setOpaque(true);
-        menuBar.setBackground(new Color(230,230,230));
+        menuBar.setBackground(new Color(230, 230, 230));
         //
         // Add the "File" menu to the menu bar
         //
         // The "File" menu contains "Exit"
         //
         menuBar.add(new Menu(this, "File", new String[] {"Exit", "exit"}));
+        //
+        // Add the "Details" menu to the menu bar
+        //
+        // The "Details" menu contains "Worker details"
+        //
+        menuBar.add(new Menu(this, "Details", new String[] {"Worker Details", "workerDetails"}));
         //
         // Add the "Help" menu to the menu bar
         //
@@ -115,21 +159,17 @@ public final class MainWindow extends JFrame implements ActionListener {
         //
         setJMenuBar(menuBar);
         //
-        // Create the status pane containing the NRS node, minting account, currency, number of units
+        // Create the status pane containing the NRS node, minting account,
+        // currency, number of units
         // and target difficulty
         //
-        Box statusPane = Box.createVerticalBox();
-        statusPane.add(new JLabel(String.format("<html><b>Server: %s:%d</b></html>",
-                                                Main.nxtHost, Main.apiPort)));
-        statusPane.add(new JLabel(String.format("<html><b>Account: %s</b></html>",
-                                                Utils.getAccountRsId(Main.accountId))));
-        statusPane.add(new JLabel(String.format("<html><b>Currency: %s</b></html>",
-                                                Main.currencyCode)));
-        statusPane.add(new JLabel(String.format("<html><b>Units: %,f</b></html>",
-                                                Main.currencyUnits)));
-        statusPane.add(new JLabel(String.format("<html><b>Difficulty: %,d</b></html>",
-                                                Main.mintingTarget.getDifficulty())));
-        statusPane.add(Box.createVerticalStrut(10));
+        serverAddressLabel.setText(String.format("<html><b>Server: %s:%d</b></html>", 
+                                                 Main.nxtHost, Main.apiPort));
+        accountLabel.setText(String.format("<html><b>Account: %s</b></html>", 
+                                                 Utils.getAccountRsId(Main.accountId)));
+        currencyLabel.setText(String.format("<html><b>Currency: %s</b></html>", Main.currencyCode));
+        unitsLabel.setText(String.format("<html><b>Units: %,f</b></html>",  Main.currencyUnits));
+        Box mainStatusPane = initStatusPanel();
         //
         // Create the solutions table
         //
@@ -145,14 +185,107 @@ public final class MainWindow extends JFrame implements ActionListener {
         contentPane.setOpaque(true);
         contentPane.setBackground(Color.WHITE);
         contentPane.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        contentPane.add(statusPane, BorderLayout.NORTH);
-        //ntentPane.add(Box.createVerticalStrut(100));
+        contentPane.add(mainStatusPane, BorderLayout.NORTH);
         contentPane.add(scrollPane, BorderLayout.CENTER);
         setContentPane(contentPane);
         //
         // Receive WindowListener events
         //
         addWindowListener(new ApplicationWindowListener());
+        //
+        // Start worker status update timer
+        //
+        startWorkersDetailsUpdater();
+    }
+
+    /**
+     * Initialize the status panel
+     * 
+     * @return                  Status panel
+     */
+    private Box initStatusPanel() {
+        Box mainStatusPane = Box.createHorizontalBox();
+
+        Box currencyStatusPane = Box.createVerticalBox();
+        currencyStatusPane.add(serverAddressLabel);
+        currencyStatusPane.add(accountLabel);
+        currencyStatusPane.add(currencyLabel);
+        currencyStatusPane.add(unitsLabel);
+        currencyStatusPane.add(difficultyLabel);
+        currencyStatusPane.add(Box.createVerticalStrut(10));
+
+        Box miningStatusPane = Box.createVerticalBox();
+        miningStatusPane.add(hashrateLabel);
+        miningStatusPane.add(totalHashesLabel);
+        miningStatusPane.add(advancementLabel);
+        miningStatusPane.add(nbCpuWorkersLabel);
+        miningStatusPane.add(nbGpuWorkersLabel);
+        miningStatusPane.add(Box.createVerticalStrut(10));
+
+        updateLabels();
+
+        mainStatusPane.add(currencyStatusPane);
+        mainStatusPane.add(miningStatusPane);
+        return mainStatusPane;
+    }
+
+    /**
+     * Start the timer which updates the labels.
+     */
+    private void startWorkersDetailsUpdater() {
+        Timer labelUpdater = new Timer();
+        labelUpdater.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    updateLabels();
+                    javax.swing.SwingUtilities.invokeLater(() -> repaint());
+                });
+            }
+        }, 5000, 5000);
+    }
+    
+    /**
+     * Update the status panel
+     */
+    private void updateLabels() {
+        MintingTarget mintingTarget = (Mint.mintingTarget!=null ? Mint.mintingTarget : Main.mintingTarget);
+        difficultyLabel.setText(String.format("<html><b>Difficulty: %,d</b></html>", mintingTarget.getDifficulty()));
+        double hashrate = 0;
+        long totalHashes = 0;
+        int nbCpuWorkers = 0;
+        int nbGpuWorkers = 0;
+        int nbGpuWorkersDisabled = 0;
+        if (Mint.getWorkers() != null) {
+            for (MintWorker worker : Mint.getWorkers()) {
+                hashrate += worker.getRate();
+                totalHashes += worker.getTotalHashes();
+                if (worker.isGpuWorker()) {
+                    if (worker.isGpuDisabled())
+                        nbGpuWorkersDisabled++;
+                    else
+                        nbGpuWorkers++;
+                } else {
+                    nbCpuWorkers++;
+                }
+            }
+        }
+        double advancement = BigDecimal.valueOf(totalHashes)
+                   .divide(new BigDecimal(mintingTarget.getDifficulty()), 5, RoundingMode.HALF_EVEN)
+                   .multiply(BigDecimal.valueOf(100D)).doubleValue();
+
+        hashrateLabel.setText(String.format("<html><b>Hashrate: %,.2f MHs/s</b></html>", 
+                                    hashrate/1000000));
+        totalHashesLabel.setText(String.format("<html><b>Total hashes: %,.2f MHs</b></html>", 
+                                    (double)totalHashes/1000000));
+        advancementLabel.setText(String.format("<html><b>Advancement: %,.2f &#37;</b></html>", 
+                                    advancement));
+        nbCpuWorkersLabel.setText(String.format("<html><b>CPU workers: %s </b></html>", 
+                                    nbCpuWorkers));
+        nbGpuWorkersLabel.setText(String.format("<html><b>GPU workers: %s (Disabled: %s)</b></html>", 
+                                    nbGpuWorkers, nbGpuWorkersDisabled));
+        if (workerDetailsDialog != null)
+            workerDetailsDialog.updateLabels(hashrate, totalHashes);
     }
 
     /**
@@ -165,22 +298,26 @@ public final class MainWindow extends JFrame implements ActionListener {
         //
         // "about"          - Display information about this program
         // "exit"           - Exit the program
+        // "workerDetails"  - Open the worker details dialog
         //
         try {
             String action = ae.getActionCommand();
             switch (action) {
-                case "exit":
-                    exitProgram();
-                    break;
-                case "about":
-                    aboutNxtMint();
-                    break;
+            case "exit":
+                exitProgram();
+                break;
+            case "about":
+                aboutNxtMint();
+                break;
+            case "workerDetails":
+                WorkerDetailsDialog.showDialog(this, Mint.getWorkers());
+                break;
             }
         } catch (Exception exc) {
             Main.logException("Exception while processing action event", exc);
         }
     }
-    
+
     /**
      * New solution found
      * 
@@ -399,24 +536,24 @@ public final class MainWindow extends JFrame implements ActionListener {
             Solution solution = solutionList.get(row);
             switch (column) {
                 case 0:                         // Date
-                    value = solution.getDate();
-                    break;
+                value = solution.getDate();
+                break;
                 case 1:                         // Transaction identifier
-                    value = Utils.idToString(solution.getTxId());
-                    break;
+                value = Utils.idToString(solution.getTxId());
+                break;
                 case 2:                         // Units
-                    value = solution.getUnits();
-                    break;
+                value = solution.getUnits();
+                break;
                 case 3:                         // Counter
                     value = (int)solution.getCounter();
-                    break;
+                break;
                 case 4:                         // Hash count (MHash)
                     value = (double)solution.getHashCount()/1000000.0;
-                    break;
+                break;
             }
             return value;
         }
-        
+
         /**
          * A new solution has been found
          * 
