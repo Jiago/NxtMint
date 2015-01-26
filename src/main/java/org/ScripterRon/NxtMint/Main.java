@@ -437,6 +437,7 @@ public class Main {
                             }
                         } else {
                             gpuSizes.add(256);
+                            gpuCounts.add(0);
                         }
                         break;
                     case "enablegui":
