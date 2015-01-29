@@ -97,13 +97,15 @@ static void resetDigest(__global Digest *digest);
 static void processBlock(__global Digest *digest);
 static void processWord(BYTE *buffer, int inOff, __global Digest *digest);
 static void copyDigest(__global Digest *tgtDigest, __global Digest *srcDigest);
-static UINT Ch(UINT x, UINT y, UINT z);
-static UINT Maj(UINT x, UINT y, UINT z);
-static UINT Sum0(UINT x);
-static UINT Sum1(UINT x);
 
 /** Rotate left for integer value */
 #define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
+
+/** SHA-256 manipulation functions */
+#define Ch(x, y, z) (((x) & (y)) ^ ((~(x)) & (z)))
+#define Maj(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
+#define Sum0(x) (rotateLeft(x, 30) ^ rotateLeft(x, 19) ^ rotateLeft(x, 10))
+#define Sum1(x) (rotateLeft(x, 26) ^ rotateLeft(x, 21) ^ rotateLeft(x, 7))
 
 /**
  * Do the hash
@@ -417,22 +419,6 @@ static void processBlock(__global Digest *digest) {
     digest->xOff = 0;
     for (i=0; i<16; i++)
         digest->DX[i] = 0;
-}
-
-static UINT Ch(UINT x, UINT y, UINT z) {
-    return (x & y) ^ ((~x) & z);
-}
-
-static UINT Maj(UINT x, UINT y, UINT z) {
-    return (x & y) ^ (x & z) ^ (y & z);
-}
-
-static UINT Sum0(UINT x) {
-    return ((x >> 2) | (x << 30)) ^ ((x >> 13) | (x << 19)) ^ ((x >> 22) | (x << 10));
-}
-
-static UINT Sum1(UINT x) {
-    return ((x >> 6) | (x << 26)) ^ ((x >> 11) | (x << 21)) ^ ((x >> 25) | (x << 7));
 }
 
 /**

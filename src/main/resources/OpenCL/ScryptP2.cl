@@ -71,16 +71,13 @@ typedef struct This_s {
 static void hash(This *this, State *state);
 static void xorSalsa8(uint16 *X0, uint16 *X1);
 
-/** Rotate left for unsigned integer value */
-#define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
-
 /**
  * Do the hash
  */
 static void hash(This *this, State *state) {
-    uint    *pX0 = (uint *)state->X0;
-    uint    *pX1 = (uint *)state->X1;
-    int     i;
+    uint   *pX0 = (uint *)state->X0;
+    uint   *pX1 = (uint *)state->X1;
+    int    i;
     //
     // Perform the hashes
     //
@@ -107,46 +104,47 @@ static void hash(This *this, State *state) {
  */
 static void xorSalsa8(uint16 *X0, uint16 *X1) {
     *X0 ^= *X1;
-    UINT x00 = (*X0).s0;  UINT x01 = (*X0).s1;   UINT x02 = (*X0).s2;   UINT x03 = (*X0).s3;
-    UINT x04 = (*X0).s4;  UINT x05 = (*X0).s5;   UINT x06 = (*X0).s6;   UINT x07 = (*X0).s7;
-    UINT x08 = (*X0).s8;  UINT x09 = (*X0).s9;   UINT x10 = (*X0).sA;   UINT x11 = (*X0).sB;
-    UINT x12 = (*X0).sC;  UINT x13 = (*X0).sD;   UINT x14 = (*X0).sE;   UINT x15 = (*X0).sF;
-    int i;
-    for (i=0; i<8; i+=2) {
-        x04 ^= rotateLeft(x00 + x12, 7);
-        x08 ^= rotateLeft(x04 + x00, 9);
-        x12 ^= rotateLeft(x08 + x04, 13);
-        x00 ^= rotateLeft(x12 + x08, 18);
-        x09 ^= rotateLeft(x05 + x01, 7);
-        x13 ^= rotateLeft(x09 + x05, 9);
-        x01 ^= rotateLeft(x13 + x09, 13);
-        x05 ^= rotateLeft(x01 + x13, 18);
-        x14 ^= rotateLeft(x10 + x06, 7);
-        x02 ^= rotateLeft(x14 + x10, 9);
-        x06 ^= rotateLeft(x02 + x14, 13);
-        x10 ^= rotateLeft(x06 + x02, 18);
-        x03 ^= rotateLeft(x15 + x11, 7);
-        x07 ^= rotateLeft(x03 + x15, 9);
-        x11 ^= rotateLeft(x07 + x03, 13);
-        x15 ^= rotateLeft(x11 + x07, 18);
-        x01 ^= rotateLeft(x00 + x03, 7);
-        x02 ^= rotateLeft(x01 + x00, 9);
-        x03 ^= rotateLeft(x02 + x01, 13);
-        x00 ^= rotateLeft(x03 + x02, 18);
-        x06 ^= rotateLeft(x05 + x04, 7);
-        x07 ^= rotateLeft(x06 + x05, 9);
-        x04 ^= rotateLeft(x07 + x06, 13);
-        x05 ^= rotateLeft(x04 + x07, 18);
-        x11 ^= rotateLeft(x10 + x09, 7);
-        x08 ^= rotateLeft(x11 + x10, 9);
-        x09 ^= rotateLeft(x08 + x11, 13);
-        x10 ^= rotateLeft(x09 + x08, 18);
-        x12 ^= rotateLeft(x15 + x14, 7);
-        x13 ^= rotateLeft(x12 + x15, 9);
-        x14 ^= rotateLeft(x13 + x12, 13);
-        x15 ^= rotateLeft(x14 + x13, 18);
+    uint16 W = *X0;
+    //
+    // We have a 4x4 matrix where we operate on the columns first and then on the rows
+    //
+    for (int i=0; i<8; i+=2) {
+            // Column operations
+        W.s49E3 ^= rotate((uint4)(W.s0 + W.sC,
+                                  W.s5 + W.s1,
+                                  W.sA + W.s6,
+                                  W.sF + W.sB), 7);
+        W.s8D27 ^= rotate((uint4)(W.s4 + W.s0,
+                                  W.s9 + W.s5,
+                                  W.sE + W.sA,
+                                  W.s3 + W.sF), 9);
+        W.sC16B ^= rotate((uint4)(W.s8 + W.s4,
+                                  W.sD + W.s9,
+                                  W.s2 + W.sE,
+                                  W.s7 + W.s3), 13);
+        W.s05AF ^= rotate((uint4)(W.sC + W.s8,
+                                  W.s1 + W.sD,
+                                  W.s6 + W.s2,
+                                  W.sB + W.s7), 18);
+            // Row operations
+        W.s16BC ^= rotate((uint4)(W.s0 + W.s3,
+                                  W.s5 + W.s4,
+                                  W.sA + W.s9,
+                                  W.sF + W.sE), 7);
+        W.s278D ^= rotate((uint4)(W.s1 + W.s0,
+                                  W.s6 + W.s5,
+                                  W.sB + W.sA,
+                                  W.sC + W.sF), 9);
+        W.s349E ^= rotate((uint4)(W.s2 + W.s1,
+                                  W.s7 + W.s6,
+                                  W.s8 + W.sB,
+                                  W.sD + W.sC), 13);
+        W.s05AF ^= rotate((uint4)(W.s3 + W.s2,
+                                  W.s4 + W.s7,
+                                  W.s9 + W.s8,
+                                  W.sE + W.sD), 18);
     }
-    *X0 += (uint16)(x00, x01, x02, x03, x04, x05, x06, x07, x08, x09, x10, x11, x12, x13, x14, x15);
+    *X0 += W;
 }
 
 /**
@@ -174,9 +172,10 @@ __kernel void run(__global uchar  *kernelData,
     //
     __global uchar *stateData = stateBytes+(get_global_id(0)*(3*304+2*64));
     State state;
-    uint16 X0 = vload16(0, (__global uint *)(stateData+3*304));
+    uint16 X0, X1;
+    X0 = vload16(0, (__global uint *)(stateData+3*304));
+    X1 = vload16(0, (__global uint *)(stateData+3*304+64));
     state.X0 = &X0;
-    uint16 X1 = vload16(0, (__global uint *)(stateData+3*304+64));
     state.X1 = &X1;
     //
     // Hash the input data if we haven't found a solution yet
