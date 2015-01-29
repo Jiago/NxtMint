@@ -16,91 +16,87 @@
 package org.ScripterRon.NxtMint;
 import static org.ScripterRon.NxtMint.Main.log;
 
-import com.amd.aparapi.device.OpenCLDevice;
+import org.jocl.CL;
+import org.jocl.CLException;
+import org.jocl.Pointer;
+import org.jocl.Sizeof;
+import org.jocl.cl_kernel;
+import org.jocl.cl_mem;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
- * 
- * GpuKnv25 uses the Aparapi package to calculate hashes using the graphics card
- * GPU.  The Aparapi and OpenCL runtime libraries must be available in either the
- * system path or the Java library path.  This GPU version of HashKnv25 is optimized
- * for the GPU and does not support generalized hashing.
- * 
- * Aparapi builds an OpenCL kernel from the Java bytecodes when the Kernel.execute()
- * method is invoked.  The compiled program is saved for subsequent executions by
- * the same kernel.
- * 
- * Aparapi supports a subset of Java functions:
- *   o Only primitive data types and single-dimension arrays are supported.
- *   o Objects cannot be created by the kernel program.  This means that kernel
- *     code cannot use the 'new' operation.
- *   o Java exceptions, enhanced 'for' statements and 'break' statements are not supported.
- *   o Variable assignment during expression evaluation is not supported.
- *   o Primitive data types defined within a function must be assigned a value at the time of definition.
- *   o Only data belonging to the enclosing Java class can be copied to/from GPU memory.
- *   o Primitives and objects can be read from kernel code but only objects can be
- *     written by kernel code.
- *   o Aparapi normally defines kernel groups based on the capabilities of the graphics card.
- *     The Range object can be used to define an explicit grouping.
- *   o Untagged data is shared by all instances of the kernel.
- *   o Constant data is not fetched upon completion of kernel execution.  Constant data is
- *     indicated by prefixing the data definition with @Constant.
- *   o Local data is shared by all instances in the same kernel group.  Local data is indicated
- *     by prefixing the data definition with @Local
- *   o Private data is not shared and each kernel instance has its own copy of the data.  Private
- *     data is indicated by prefixing the data definition with @PrivateMemorySpace(nnn) where 'nnn'
- *     is the array dimension.  Private data cannot be passed as a function parameter since it is
- *     in a separate address space and this information is not passed on the function call.
  */
 public class GpuKnv25 extends GpuFunction {
-        
-    /** Hash algorithm constants */
-    private final long[] constants = {
-        1L, 32898L, -9223372036854742902L, -9223372034707259392L, 32907L,
-        2147483649L, -9223372034707259263L, -9223372036854743031L, 138L, 136L,
-        2147516425L, 2147483658L, 2147516555L, -9223372036854775669L, -9223372036854742903L,
-        -9223372036854743037L, -9223372036854743038L, -9223372036854775680L, 32778L, -9223372034707292150L,
-        -9223372034707259263L, -9223372036854742912L, 2147483649L, -9223372034707259384L, 1L
-    };
 
-    /** Input data */
-    private final long[] input = new long[5];
+    /** Pass identifier */
+    private final int[] passId = new int[1];
     
-    /** Hash target */
-    private final byte[] target = new byte[32];
+    /** Kernel global size */
+    private final long[] kernelGlobalSize = new long[1];
     
-    /** TRUE if the target is met */
-    private final boolean[] done = new boolean[1];
+    /** Kernel local size */
+    private final long[] kernelLocalSize = new long[1];
     
-    /** Nonce used to solve the hash */
-    private final long[] nonce = new long[1];
+    /** Kernel data offset */
+    private final int inputOffset = 0;
+    private final int targetOffset = 40;
+    private final int solutionOffset = 72;
+    private final int doneOffset = 80; 
+    
+    /** Kernel data buffer */
+    private final byte[] kernelData = new byte[40+32+8+4];
 
     /**
      * Create the GPU hash function
      * 
      * @param       gpuDevice       The GPU device
+     * @throws      CLException     OpenCL error occurred
+     * @throws      IOException     Unable to read OpenCL program source
      */
-    public GpuKnv25(GpuDevice gpuDevice) {
-        super(gpuDevice);
+    public GpuKnv25(GpuDevice gpuDevice) throws CLException, IOException {
+        super(gpuDevice, "Keccak25.cl");
         //
         // Calculate the local and global sizes
         //
-        OpenCLDevice clDevice = gpuDevice.getDevice();
-        if (Main.gpuIntensity > 2000000) {
-            log.warn("GPU intensity may not exceed 2,000,000 - setting to maximum");
-            count = 2000000*1024;
+        if (Main.gpuIntensity > 1024) {
+            log.warn("GPU intensity may not exceed 1024 - setting to maximum");
+            count = 1024*1024;
         } else {
             count = Main.gpuIntensity*1024;
         }
-        int localSize = gpuDevice.getWorkGroupSize();
-        int globalSize;
+        localSize = gpuDevice.getWorkGroupSize();
+        if (localSize%preferredLocalSize != 0)
+            log.warn(String.format("GPU %d: Preferred work group size multiple is %d",
+                                   gpuDevice.getGpuId(), preferredLocalSize));
         if (gpuDevice.getWorkGroupCount() != 0)
             globalSize = gpuDevice.getWorkGroupCount()*localSize;
         else
-            globalSize = (this.count/localSize)*localSize;
-        range = clDevice.createRange(globalSize, localSize);
+            globalSize = (count/localSize)*localSize;
+        if (count < globalSize)
+            globalSize = count;
         count = ((count+globalSize-1)/globalSize)*globalSize;
-        log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
+        passes = count/globalSize;
+        kernelGlobalSize[0] = globalSize;
+        kernelLocalSize[0] = localSize;
+        log.debug(String.format("GPU %d: Local size %d, Global size %d, Passes %d", 
+                                gpuDevice.getGpuId(), localSize, globalSize, passes));
+        //
+        // Allocate the memory object for the kernel data
+        //
+        memObjects = new cl_mem[1];
+        memObjects[0] = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
+                                          Sizeof.cl_uchar*kernelData.length, null, null);
+        //
+        // Set the fixed kernel arguments
+        //
+        CL.clSetKernelArg(kernels[0], 0, Sizeof.cl_mem, Pointer.to(memObjects[0]));
+        //
+        // OpenCL resources have been allocated
+        //
+        resourcesAllocated = true;
     }
 
     /**
@@ -113,7 +109,7 @@ public class GpuKnv25 extends GpuFunction {
      *     Bytes 24-31: Minting counter
      *     Bytes 32-39: Account identifier
      * 
-     * The hash target and hash digest are treated as unsigned 32-byte numbers in little-endian format.
+     * The hash target and hash digest are unsigned 32-byte numbers in little-endian format.
      * The digest must be less than the target in order to be a solution.
      * 
      * @param       inputBytes      Bytes to be hashed (40 bytes)
@@ -126,230 +122,84 @@ public class GpuKnv25 extends GpuFunction {
         if (targetBytes.length != 32)
             throw new IllegalArgumentException("Target data length must be 32 bytes");
         //
-        // Convert the input data to an array of unsigned longs
+        // Set the input data
         //
-        for (int i=0, offset=0; i<5; i++, offset+=8)
-            input[i] = ((long)(inputBytes[offset] & 0xFF)) | 
-                       (((long)(inputBytes[offset+1] & 0xFF)) << 8) | 
-                       (((long)(inputBytes[offset+2] & 0xFF)) << 16) | 
-                       (((long)(inputBytes[offset+3] & 0xFF)) << 24) | 
-                       (((long)(inputBytes[offset+4] & 0xFF)) << 32) | 
-                       (((long)(inputBytes[offset+5] & 0xFF)) << 40) | 
-                       (((long)(inputBytes[offset+6] & 0xFF)) << 48) | 
-                       (((long)(inputBytes[offset+7] & 0xFF)) << 56);
+        System.arraycopy(inputBytes, 0, kernelData, inputOffset, 40);
         //
-        // Save the hash target
+        // Set the hash target
         //
-        System.arraycopy(targetBytes, 0, target, 0, target.length);
+        System.arraycopy(targetBytes, 0, kernelData, targetOffset, 32);
         //
-        // Indicate no solution found yet
+        // Indicate no solution has been found
         //
-        done[0] = false;
-        nonce[0] = 0;
-    }
-
-    /**
-     * Check if we found a solution
-     * 
-     * @return                      TRUE if we found a solution
-     */
-    @Override
-    public boolean isSolved() {
-        return done[0];
-    }
-    
-    /**
-     * Return the nonce used to solve the hash
-     * 
-     * @return                      Nonce
-     */
-    @Override
-    public long getNonce() {
-        return nonce[0];
+        Arrays.fill(kernelData, doneOffset, doneOffset+4, (byte)0);
     }
     
     /**
      * Execute the kernel
+     * 
+     * @return                      TRUE if the kernel was executed
      */
     @Override
-    public void execute() {
-        if (range.getGlobalSize(0) < count)
-            super.execute(range, count/range.getGlobalSize(0));
-        else
-            super.execute(range);
-    }
-
-    /**
-     * GPU kernel code
-     */
-    @Override
-    public void run() {
-        //
-        // Hash the input if we haven't found a solution yet
-        //
-        if (!done[0])
-            hash();
-    }
-
-    /**
-     * Compute the hash
-     */
-    private void hash() {
-        int i=0;
-        //
-        // Set the initial state and modify the nonce by the kernel instance identifier.
-        // We will modify the nonce (first 8 bytes of the input data) for each execution
-        // instance.
-        //
-        long state0 = input[0] + (long)getGlobalId();
-        long state1 = input[1];
-        long state2 = input[2];
-        long state3 = input[3];
-        long state4 = input[4];
-        long state5 = 1;
-        long state16 = -9223372036854775808L;
-        long state6=0, state7=0, state8=0, state9=0, state10=0, state11=0, state12=0, 
-                state13=0, state14=0, state15=0, state17=0, state18=0, state19=0, 
-                state20=0, state21=0, state22=0, state23=0, state24=0;
-        //
-        // Iterate to calculate the digest
-        //
-        for (i=0; i<25;) {
-            long t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13, t14, t15, t16, t17, t18, t19;
-            t1 = state0 ^ state5 ^ state10 ^ state15 ^ state20;
-            t2 = state2 ^ state7 ^ state12 ^ state17 ^ state22;
-            t3 = t1 ^ ((t2 << 1) | (t2 >>> (64-1)));
-            t12 = state1 ^ t3;
-
-            t4 = state1 ^ state6 ^ state11 ^ state16 ^ state21;
-            t5 = state3 ^ state8 ^ state13 ^ state18 ^ state23;
-            t6 = t4 ^ ((t5 << 1) | (t5 >>> (64-1)));
-            t13 = state2 ^ t6;
-
-            t7 = state4 ^ state9 ^ state14 ^ state19 ^ state24;
-            t8 = ((t4 << 1) | (t4 >>> (64-1))) ^ t7;
-            t16 = state6 ^ t3;
-            t16 = ((t16 << 44) | (t16 >>> (64-44)));
-            state2 = state12 ^ t6;
-            state2 = (state2 << 43) | (state2 >>> (64-43));
-            t9 = state0 ^ t8;
-            state0 = t9 ^ (~t16 & state2) ^ constants[i++];
-
-            t10 = ((t7 << 1) | (t7 >>> (64-1))) ^ t2;
-            t14 = state3 ^ t10;
-            state3 = state18 ^ t10;
-            state3 = (state3 << 21) | (state3 >>> (64-21));
-            state1 = t16 ^ (~state2 & state3);
-
-            t11 = ((t1 << 1) | (t1 >>> (64-1))) ^ t5;
-            t15 = state4 ^ t11;
-            state4 = state24 ^ t11;
-            state4 = (state4 << 14) | (state4 >>> (64-14));
-            state2 ^= (~state3) & state4;
-
-            state3 ^= (~state4) & t9;
-            state4 ^= (~t9) & t16;
-            t16 = state5 ^ t8;
-            t17 = state7 ^ t6;
-            t19 = state9 ^ t11;
-            t19 = (t19 << 20) | (t19 >>> (64-20));
-            t14 = (t14 << 28) | (t14 >>> (64-28));
-            state7 = state10 ^ t8;
-            state7 = (state7 << 3) | (state7 >>> (64-3));
-            state5 = t14 ^ (~t19 & state7);
-
-            t18 = state8 ^ t10;
-            state8 = state16 ^ t3;
-            state8 = (state8 << 45) | (state8 >>> (64-45));
-            state6 = t19 ^ (~state7 & state8);
-
-            state9 = state22 ^ t6;
-            state9 = (state9 << 61) | (state9 >>> (64-61));
-            state7 ^= (~state8) & state9;
-
-            state8 ^= ~state9 & t14;
-            state9 ^= ~t14 & t19;
-            t19 = state11 ^ t3;
-
-            t12 = (t12 << 1) | (t12 >>> (64-1));
-            t17 = (t17 << 6) | (t17 >>> (64-6));
-            state12 = state13 ^ t10;
-            state12 = (state12 << 25) | (state12 >>> (64-25));
-            state10 = t12 ^ (~t17 & state12);
-
-            state13 = state19 ^ t11;
-            state13 = (state13 << 8) | (state13 >>> (64-8));
-            state11 = t17 ^ (~state12 & state13);
-
-            t14 = state14 ^ t11;
-            state14 = state20 ^ t8;
-            state14 = (state14 << 18) | (state14 >>> (64-18));
-            state12 ^= ~state13 & state14;
-
-            state13 ^= ~state14 & t12;
-            state14 ^= ~t12 & t17;
-            t12 = state15 ^ t8;
-            t17 = state17 ^ t6;
-
-            t16 = (t16 << 36) | (t16 >>> (64-36));
-            t15 = (t15 << 27) | (t15 >>> (64-27));
-            state17 = (t19 << 10) | (t19 >>> (64-10));
-            state15 = t15 ^ (~t16 & state17);
-
-            state18 = (t17 << 15) | (t17 >>> (64-15));
-            state16 = t16 ^ (~state17 & state18);
-
-            state19 = state23 ^ t10;
-            state19 = (state19 << 56) | (state19 >>> (64-56));
-            state17 ^= ~state18 & state19;
-
-            state18 ^= (~state19) & t15;
-            state19 ^= (~t15) & t16;
-            t19 = state21 ^ t3;
-
-            t13 = (t13 << 62) | (t13 >>> (64-62));
-            t18 = (t18 << 55) | (t18 >>> (64-55));
-            state22 = (t14 << 39) | (t14 >>> (64-39));
-            state20 = t13 ^ (~t18 & state22);
-
-            state23 = (t12 << 41) | (t12 >>> (64-41));
-            state21 = t18 ^ (~state22 & state23);
-
-            state24 = (t19 << 2) | (t19 >>> (64-2));
-            state22 ^= ~state23 & state24;
-            state23 ^= ~state24 & t13;
-            state24 ^= ~t13 & t18;
-        }
-        //
-        // Save the digest if it satisfies the target.  Note that the digest and the target
-        // are treated as 32-byte unsigned numbers in little-endian format.
-        //
-        boolean keepChecking = true;
-        boolean isSolved = true;
-        long check = 0;
-        for (i=3; i>=0&&keepChecking; i--) {
-            if (i == 0)
-                check = state0;
-            else if (i == 1)
-                check = state1;
-            else if (i == 2)
-                check = state2;
-            else
-                check = state3;
-            for (int j=7; j>=0&&keepChecking; j--) {
-                int b0 = (int)(check>>(j*8))&0xff;
-                int b1 = (int)(target[i*8+j])&0xff;
-                if (b0 < b1) 
-                    keepChecking = false;
-                if (b0 > b1) {
-                    isSolved = false;
-                    keepChecking = false;
-                }
+    public boolean execute() {
+        boolean executed = false;
+        try {
+            //
+            // Write the kernel data to the GPU
+            //
+            CL.clEnqueueWriteBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
+                                    Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
+                                    0, null, null);
+            //
+            // Execute the kernel, updating the passId for each pass.  The kernels
+            // will be executed sequentially, so the value chosen for global size 
+            // should be large enough to keep the GPU compute units busy.  All work
+            // items in the same work group will share local memory, which implies
+            // that they will all be executed by the same compute unit.
+            //
+            for (int i=0; i<passes; i++) {
+                passId[0] = i;
+                CL.clSetKernelArg(kernels[0], 1, Sizeof.cl_int, Pointer.to(passId));
+                CL.clEnqueueNDRangeKernel(commandQueue, kernels[0], 1, null, 
+                                          kernelGlobalSize, kernelLocalSize, 
+                                          0, null, null);
+                CL.clEnqueueReadBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
+                                       Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
+                                       0, null, null);
+                meetsTarget = (kernelData[doneOffset]!=0   || kernelData[doneOffset+1]!=0 ||
+                               kernelData[doneOffset+2]!=0 || kernelData[doneOffset+3]!=0);
+                if (meetsTarget)
+                    break;
             }
+            if (meetsTarget)
+                nonce = ((long)kernelData[solutionOffset]&255) |
+                        (((long)kernelData[solutionOffset+1]&255) << 8) |
+                        (((long)kernelData[solutionOffset+2]&255) << 16) |
+                        (((long)kernelData[solutionOffset+3]&255) << 24) |
+                        (((long)kernelData[solutionOffset+4]&255) << 32) |
+                        (((long)kernelData[solutionOffset+5]&255) << 40) |
+                        (((long)kernelData[solutionOffset+6]&255) << 48) |
+                        (((long)kernelData[solutionOffset+7]&255) << 56);
+            executed = true;
+        } catch (CLException exc) {
+            log.error("Unable to execute OpenCL kernel", exc);
         }
-        if (isSolved) {
-            done[0] = true;
-            nonce[0] = input[0] + (long)getGlobalId();
+        return executed;
+    }
+    
+    /**
+     * Release OpenCL resources when we are finished using the GPU
+     */
+    @Override
+    public void dispose() {
+        if (resourcesAllocated) {
+            resourcesAllocated = false;
+            for (cl_mem memObject : memObjects)
+                CL.clReleaseMemObject(memObject);
+            for (cl_kernel kernel : kernels)
+                CL.clReleaseKernel(kernel);
+            CL.clReleaseCommandQueue(commandQueue);
+            CL.clReleaseContext(context);        
         }
     }
 }

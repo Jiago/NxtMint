@@ -79,30 +79,30 @@ public class Mint {
         } catch (NxtException exc) {
             log.error("Unable to get unconfirmed transactions", exc);
         }
-        //
-        // Start the CPU worker threads
-        //
-        for (int i=0; i<Main.cpuThreads; i++) {
-            MintWorker worker = new MintWorker(i, solutions, false, 0);
-            Thread thread = new Thread(threadGroup, worker);
-            thread.start();
-            workers.add(worker);
-        }
-        //
-        // Start the GPU worker thread
-        //
-        if (Main.gpuIntensity > 0) {
-            for (Integer gpuId : Main.gpuDevices) {
-                MintWorker worker = new MintWorker(workers.size(), solutions, true, gpuId);
+        try {
+            //
+            // Start the CPU worker threads
+            //
+            for (int i=0; i<Main.cpuThreads; i++) {
+                MintWorker worker = new MintWorker(i, solutions, false, 0);
                 Thread thread = new Thread(threadGroup, worker);
                 thread.start();
                 workers.add(worker);
             }
-        }
-        //
-        // Mint coins until shutdown
-        //
-        try {
+            //
+            // Start the GPU worker threads
+            //
+            if (Main.gpuIntensity > 0) {
+                for (Integer gpuId : Main.gpuDevices) {
+                    MintWorker worker = new MintWorker(workers.size(), solutions, true, gpuId);
+                    Thread thread = new Thread(threadGroup, worker);
+                    thread.start();
+                    workers.add(worker);
+                }
+            }
+            //
+            // Mint coins until shutdown
+            //
             boolean workDispatched = false;
             while (true) {
                 if (mintThread.isInterrupted())

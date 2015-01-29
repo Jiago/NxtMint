@@ -24,6 +24,11 @@ import org.ScripterRon.NxtCore.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.jocl.CL;
+import org.jocl.CLException;
+import org.jocl.cl_device_id;
+import org.jocl.cl_platform_id;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -42,9 +47,6 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-
-import com.amd.aparapi.device.OpenCLDevice;
-import com.amd.aparapi.internal.opencl.OpenCLPlatform;
 
 /**
  * NxtMint will mint a Nxt currency
@@ -285,11 +287,10 @@ public class Main {
                     if (devnum >= gpuDeviceList.size())
                         throw new IllegalArgumentException(String.format("GPU device %d is not available", devnum));
                     GpuDevice gpuDevice = gpuDeviceList.get(devnum);
-                    OpenCLDevice clDevice = gpuDevice.getDevice();
-                    if (gpuSizes.get(i) > clDevice.getMaxWorkGroupSize()) {
-                        log.warn(String.format("Work group size %d for GPU %d exceeds maximum size %d, using maximum size",
-                                               gpuSizes.get(i), devnum, clDevice.getMaxWorkGroupSize()));
-                        gpuDevice.setWorkGroupSize(clDevice.getMaxWorkGroupSize());
+                    if (gpuSizes.get(i) > gpuDevice.getMaxWorkGroupSize()) {
+                        log.warn(String.format("Work group size %d for GPU %d exceeds maximum size %d - using maximum size",
+                                               gpuSizes.get(i), devnum, gpuDevice.getMaxWorkGroupSize()));
+                        gpuDevice.setWorkGroupSize(gpuDevice.getMaxWorkGroupSize());
                     } else {
                         gpuDevice.setWorkGroupSize(gpuSizes.get(i));
                     }
@@ -457,26 +458,48 @@ public class Main {
     
     /**
      * Build a list of available GPU devices
+     * 
+     * @throws      CLException         OpenCL error occurred
      */
-    private static void buildGpuList() {
+    private static void buildGpuList() throws CLException {
         //
-        // Enumerate the OpenCL platforms and build the device list
+        // Enable OpenCL exceptions
         //
-        List<OpenCLPlatform> platforms = new OpenCLPlatform().getOpenCLPlatforms();
-        platforms.stream().forEach((platform) -> {
-            List<OpenCLDevice> devices = platform.getOpenCLDevices();
-            devices.stream()
-                   .filter((device) -> (device.getType().equals(OpenCLDevice.TYPE.GPU)))
-                   .forEach((device) -> {
-                log.info(String.format(
-                        "GPU device %d: %s\n"
-                            + "  %dMB global memory, %dKB local memory, %d compute units, Max work group size %d",
-                        gpuDeviceList.size(), platform.getName(),
-                        device.getGlobalMemSize()/(1024*1024), device.getLocalMemSize()/1024,
-                        device.getMaxComputeUnits(), device.getMaxWorkGroupSize()));
-                gpuDeviceList.add(new GpuDevice(device));
-            });
-        });
+        CL.setExceptionsEnabled(true);
+        //
+        // Get the available platforms
+        //
+        int[] numPlatforms= new int[1];
+        CL.clGetPlatformIDs(0, null, numPlatforms);
+        cl_platform_id[] platforms = new cl_platform_id[numPlatforms[0]];
+        CL.clGetPlatformIDs(platforms.length, platforms, null);
+        //
+        // Get the devices for each platform
+        //
+        for (cl_platform_id platform : platforms) {
+            int numDevices[] = new int[1];
+            CL.clGetDeviceIDs(platform, CL.CL_DEVICE_TYPE_ALL, 0, null, numDevices);
+            cl_device_id[] devices = new cl_device_id[numDevices[0]];
+            CL.clGetDeviceIDs(platform, CL.CL_DEVICE_TYPE_ALL, devices.length, devices, null);
+            for (cl_device_id device : devices) {
+                long deviceType = OpenCL.getLong(device, CL.CL_DEVICE_TYPE);
+                if ((deviceType&CL.CL_DEVICE_TYPE_GPU)!=0 && OpenCL.getBoolean(device, CL.CL_DEVICE_AVAILABLE)) {
+                    String deviceName = OpenCL.getString(device, CL.CL_DEVICE_NAME);
+                    int computeUnits = OpenCL.getInt(device, CL.CL_DEVICE_MAX_COMPUTE_UNITS);
+                    long globalMemorySize = OpenCL.getLong(device, CL.CL_DEVICE_GLOBAL_MEM_SIZE);
+                    long localMemorySize = OpenCL.getLong(device, CL.CL_DEVICE_LOCAL_MEM_SIZE);
+                    int maxWorkGroupSize = (int)OpenCL.getSize(device, CL.CL_DEVICE_MAX_WORK_GROUP_SIZE);
+                    int gpuId = gpuDeviceList.size();
+                    log.info(String.format(
+                            "GPU device %d: %s\n" +
+                            "  %dMB global memory, %dKB local memory, %d compute units, Max work group size %d",
+                            gpuId, deviceName, globalMemorySize/(1024*1024),
+                            localMemorySize/1024, computeUnits, maxWorkGroupSize));
+                    gpuDeviceList.add(new GpuDevice(gpuId, platform, device, computeUnits,
+                                                    globalMemorySize, localMemorySize, maxWorkGroupSize));
+                }
+            }
+        }
     }
 
     /**

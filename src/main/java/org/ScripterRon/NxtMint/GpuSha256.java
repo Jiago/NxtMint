@@ -16,101 +16,87 @@
 package org.ScripterRon.NxtMint;
 import static org.ScripterRon.NxtMint.Main.log;
 
-import com.amd.aparapi.device.OpenCLDevice;
+import org.jocl.CL;
+import org.jocl.CLException;
+import org.jocl.Pointer;
+import org.jocl.Sizeof;
+import org.jocl.cl_kernel;
+import org.jocl.cl_mem;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * SHA-256 hash algorithm for Monetary System currencies
- * 
- * GpuSha256 uses the Aparapi package to calculate hashes using the graphics card
- * GPU.  The Aparapi and OpenCL runtime libraries must be available in either the
- * system path or the Java library path.  This GPU version of HashSha256 is optimized
- * for the GPU and does not support generalized hashing.
- * 
- * Aparapi builds an OpenCL kernel from the Java bytecodes when the Kernel.execute()
- * method is invoked.  The compiled program is saved for subsequent executions by
- * the same kernel.
- * 
- * Aparapi supports a subset of Java functions:
- *   o Only primitive data types and single-dimension arrays are supported.
- *   o Objects cannot be created by the kernel program.  This means that kernel
- *     code cannot use the 'new' operation.
- *   o Java exceptions, enhanced 'for' statements and 'break' statements are not supported.
- *   o Variable assignment during expression evaluation is not supported.
- *   o Primitive data types defined within a function must be assigned a value at the time of definition.
- *   o Only data belonging to the enclosing Java class can be copied to/from GPU memory.
- *   o Primitives and objects can be read from kernel code but only objects can be
- *     written by kernel code.
- *   o Aparapi normally defines kernel groups based on the capabilities of the graphics card.
- *     The Range object can be used to define an explicit grouping.
- *   o Untagged data is shared by all instances of the kernel.
- *   o Constant data is not fetched upon completion of kernel execution.  Constant data is
- *     indicated by prefixing the data definition with @Constant.
- *   o Local data is shared by all instances in the same kernel group.  Local data is indicated
- *     by prefixing the data definition with @Local
- *   o Private data is not shared and each kernel instance has its own copy of the data.  Private
- *     data is indicated by prefixing the data definition with @PrivateMemorySpace(nnn) where 'nnn'
- *     is the array dimension.  Private data cannot be passed as a function parameter since it is
- *     in a separate address space and this information is not passed on the function call.
  */
 public class GpuSha256 extends GpuFunction {
-        
-    /** SHA-256 constants */
-    private final int[] k = {
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
-
-    /** Input data */
-    private final byte[] input = new byte[64];
     
-    /** Hash target */
-    private final byte[] target = new byte[32];
+    /** Pass identifier */
+    private final int[] passId = new int[1];
     
-    /** TRUE if the target is met */
-    private final boolean[] done = new boolean[1];
+    /** Kernel global size */
+    private final long[] kernelGlobalSize = new long[1];
     
-    /** Nonce used to solve the hash */
-    private final long[] nonce = new long[1];
+    /** Kernel local size */
+    private final long[] kernelLocalSize = new long[1];
+    
+    /** Kernel data offsets */
+    private final int inputOffset = 0;
+    private final int targetOffset = 64;
+    private final int solutionOffset = 96;
+    private final int doneOffset = 104; 
+    
+    /** Kernel data buffer */
+    private final byte[] kernelData = new byte[64+32+8+4];
 
     /**
      * Create the GPU hash function
      * 
      * @param       gpuDevice       GPU device
+     * @throws      CLException     OpenCL error occurred
+     * @throws      IOException     Unable to read OpenCL program source
      */
-    public GpuSha256(GpuDevice gpuDevice) {
-        super(gpuDevice);
+    public GpuSha256(GpuDevice gpuDevice) throws CLException, IOException {
+        super(gpuDevice, "Sha256.cl");
         //
         // Calculate the local and global sizes
         //
-        OpenCLDevice clDevice = gpuDevice.getDevice();
-        if (Main.gpuIntensity > 2000000) {
-            log.warn("GPU intensity may not exceed 2,000,000 - setting to maximum");
-            count = 2000000*1024;
+        if (Main.gpuIntensity > 1024) {
+            log.warn("GPU intensity may not exceed 1024 - setting to maximum");
+            count = 1024*1024;
         } else {
             count = Main.gpuIntensity*1024;
         }
-        int localSize = gpuDevice.getWorkGroupSize();
-        int globalSize;
+        localSize = gpuDevice.getWorkGroupSize();
+        if (localSize%preferredLocalSize != 0)
+            log.warn(String.format("GPU %d: Preferred work group size multiple is %d",
+                                   gpuDevice.getGpuId(), preferredLocalSize));
         if (gpuDevice.getWorkGroupCount() != 0)
             globalSize = gpuDevice.getWorkGroupCount()*localSize;
         else
-            globalSize = (this.count/localSize)*localSize;
-        range = clDevice.createRange(globalSize, localSize);
+            globalSize = (count/localSize)*localSize;
+        if (count < globalSize)
+            globalSize = count;
         count = ((count+globalSize-1)/globalSize)*globalSize;
-        log.debug(String.format("GPU local size %d, global size %d", localSize, globalSize));
+        passes = count/globalSize;
+        kernelGlobalSize[0] = globalSize;
+        kernelLocalSize[0] = localSize;
+        log.debug(String.format("GPU %d: Local size %d, Global size %d, Passes %d", 
+                                gpuDevice.getGpuId(), localSize, globalSize, passes));
+        //
+        // Allocate the memory object for the kernel data
+        //
+        memObjects = new cl_mem[1];
+        memObjects[0] = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
+                                          Sizeof.cl_uchar*kernelData.length, null, null);
+        //
+        // Set the first kernel argument
+        //
+        CL.clSetKernelArg(kernels[0], 0, Sizeof.cl_mem, Pointer.to(memObjects[0]));
+        //
+        // OpenCL resources have been allocated
+        //
+        resourcesAllocated = true;
     }
 
     /**
@@ -123,7 +109,7 @@ public class GpuSha256 extends GpuFunction {
      *     Bytes 24-31: Minting counter
      *     Bytes 32-39: Account identifier
      * 
-     * The hash target and hash digest are treated as unsigned 32-byte numbers in little-endian format.
+     * The hash target and hash digest are unsigned 32-byte numbers in little-endian format.
      * The digest must be less than the target in order to be a solution.
      * 
      * @param       inputBytes      Bytes to be hashed (40 bytes)
@@ -138,7 +124,7 @@ public class GpuSha256 extends GpuFunction {
         //
         // Copy the input data
         //
-        System.arraycopy(inputBytes, 0, input, 0, inputBytes.length);
+        System.arraycopy(inputBytes, 0, kernelData, inputOffset, inputBytes.length);
         //
         // Pad the buffer
         //
@@ -147,170 +133,84 @@ public class GpuSha256 extends GpuFunction {
         // byte is 0x80 and the remaining pad bytes are 0x00.  Since we have
         // 40 bytes of data, the data bit count is 320 (0x140).
         //
-        input[40] = (byte)0x80;
-        input[62] = (byte)0x01;
-        input[63] = (byte)0x40;
+        kernelData[inputOffset+40] = (byte)0x80;
+        kernelData[inputOffset+62] = (byte)0x01;
+        kernelData[inputOffset+63] = (byte)0x40;
         //
-        // Save the hash target
+        // Set the hash target
         //
-        System.arraycopy(targetBytes, 0, target, 0, targetBytes.length);
+        System.arraycopy(targetBytes, 0, kernelData, targetOffset, targetBytes.length);
         //
-        // Indicate no solution found yet
+        // Indicate no solution has been found
         //
-        done[0] = false;
-        nonce[0] = 0;
-    }
-
-    /**
-     * Check if we found a solution
-     * 
-     * @return                      TRUE if we found a solution
-     */
-    @Override
-    public boolean isSolved() {
-        return done[0];
-    }
-    
-    /**
-     * Return the nonce used to solve the hash
-     * 
-     * @return                      Nonce
-     */
-    @Override
-    public long getNonce() {
-        return nonce[0];
+        Arrays.fill(kernelData, doneOffset, doneOffset+4, (byte)0);
     }
     
     /**
      * Execute the kernel
+     * 
+     * @return                      TRUE if the kernel was executed
      */
     @Override
-    public void execute() {
-        if (range.getGlobalSize(0) < count)
-            super.execute(range, count/range.getGlobalSize(0));
-        else
-            super.execute(range);
+    public boolean execute() {
+        boolean executed = false;
+        try {
+            //
+            // Write the kernel data to the GPU
+            //
+            CL.clEnqueueWriteBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
+                                    Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
+                                    0, null, null);
+            //
+            // Execute the kernel, updating the passId for each pass.  The kernels
+            // will be executed sequentially, so the value chosen for global size 
+            // should be large enough to keep the GPU compute units busy.  All work
+            // items in the same work group will share local memory, which implies
+            // that they will all be executed by the same compute unit.
+            //
+            for (int i=0; i<passes; i++) {
+                passId[0] = i;
+                CL.clSetKernelArg(kernels[0], 1, Sizeof.cl_int, Pointer.to(passId));
+                CL.clEnqueueNDRangeKernel(commandQueue, kernels[0], 1, null, 
+                                          kernelGlobalSize, kernelLocalSize, 
+                                          0, null, null);
+                CL.clEnqueueReadBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
+                                       Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
+                                       0, null, null);
+                meetsTarget = (kernelData[doneOffset]!=0   || kernelData[doneOffset+1]!=0 ||
+                               kernelData[doneOffset+2]!=0 || kernelData[doneOffset+3]!=0);
+                if (meetsTarget)
+                    break;
+            }
+            if (meetsTarget)
+                nonce = ((long)kernelData[solutionOffset]&255) |
+                        (((long)kernelData[solutionOffset+1]&255) << 8) |
+                        (((long)kernelData[solutionOffset+2]&255) << 16) |
+                        (((long)kernelData[solutionOffset+3]&255) << 24) |
+                        (((long)kernelData[solutionOffset+4]&255) << 32) |
+                        (((long)kernelData[solutionOffset+5]&255) << 40) |
+                        (((long)kernelData[solutionOffset+6]&255) << 48) |
+                        (((long)kernelData[solutionOffset+7]&255) << 56);
+            executed = true;
+        } catch (CLException exc) {
+            log.error("Unable to execute OpenCL kernel", exc);
+        }
+        return executed;
     }
-
+    
     /**
-     * GPU kernel code
+     * Release OpenCL resources when we are finished using the GPU
      */
     @Override
-    public void run() {
-        //
-        // Hash the input if we haven't found a solution yet
-        //
-        if (!done[0])
-            hash();
-    }
-
-    /**
-     * Compute the hash
-     */
-    private void hash() {
-        //
-        // Initialization
-        //
-        int A = 0x6a09e667;
-        int B = 0xbb67ae85;
-        int C = 0x3c6ef372;
-        int D = 0xa54ff53a;
-        int E = 0x510e527f;
-        int F = 0x9b05688c;
-        int G = 0x1f83d9ab;
-        int H = 0x5be0cd19;
-        int r, T, T2;
-        int offset = 0;
-        int w0=0, w1=0, w2=0, w3=0, w4=0, w5=0, w6=0, w7=0, w8=0, w9=0, w10=0;
-        int w11=0, w12=0, w13=0, w14=0, w15=0, w16=0;
-        long n = 0;
-        //
-        // Transform the data
-        //
-        // We will modify the nonce (first 8 bytes of the input data) for each execution instance
-        //
-        for (r=0; r<64; r++) {
-            if (r < 16) {
-                w16 = (input[offset++] << 24 | (input[offset++] & 0xFF) << 16 | 
-                            (input[offset++] & 0xFF) << 8 | (input[offset++] & 0xFF));
-                if (r == 0)
-                    n = (long)w16 << 32;
-                if (r == 1) {
-                    w16 += getGlobalId();
-                    n |= ((long)w16 & 0x00000000ffffffffL);
-                }
-            } else {
-                T =  w14;
-                T2 = w1;
-                w16 = ((((T >>> 17) | (T << 15)) ^ ((T >>> 19) | (T << 13)) ^ (T >>> 10)) + w9 + 
-                        (((T2 >>> 7) | (T2 << 25)) ^ ((T2 >>> 18) | (T2 << 14)) ^ (T2 >>> 3)) + w0);
-            }
-            T = (H + (((E >>> 6) | (E << 26)) ^ ((E >>> 11) | (E << 21)) ^ ((E >>> 25) | (E << 7))) +
-                        ((E & F) ^ (~E & G)) + k[r] + w16);
-            T2 = ((((A >>> 2) | (A << 30)) ^ ((A >>> 13) | (A << 19)) ^ ((A >>> 22) | (A << 10))) + 
-                        ((A & B) ^ (A & C) ^ (B & C)));
-            w0 = w1; w1 = w2; w2 = w3; w3 = w4; w4 = w5; w5 = w6; w6 = w7; w7 = w8; w8 = w9;
-            w9 = w10; w10 = w11; w11 = w12; w12 = w13; w13 = w14; w14 = w15; w15 = w16;
-            H = G; G = F; F = E;
-            E = D + T;
-            D = C; C = B; B = A;
-            A = T + T2;
+    public void dispose() {
+        if (resourcesAllocated) {
+            resourcesAllocated = false;
+            for (cl_mem memObject : memObjects)
+                CL.clReleaseMemObject(memObject);
+            for (cl_kernel kernel : kernels)
+                CL.clReleaseKernel(kernel);
+            CL.clReleaseCommandQueue(commandQueue);
+            CL.clReleaseContext(context);        
         }
-        //
-        // Finish the digest
-        //
-        int h0 = A + 0x6a09e667;
-        int h1 = B + 0xbb67ae85;
-        int h2 = C + 0x3c6ef372;
-        int h3 = D + 0xa54ff53a;
-        int h4 = E + 0x510e527f;
-        int h5 = F + 0x9b05688c;
-        int h6 = G + 0x1f83d9ab;
-        int h7 = H + 0x5be0cd19;
-        //
-        // Save the digest if it satisfies the target.  Note that the digest and the target
-        // are treated as 32-byte unsigned numbers in little-endian format.
-        //
-        boolean keepChecking = true;
-        boolean isSolved = true;
-        int check = 0;
-        for (int i=7; i>=0&&keepChecking; i--) {
-            if (i == 0)
-                check = h0;
-            else if (i == 1)
-                check = h1;
-            else if (i == 2)
-                check = h2;
-            else if (i == 3)
-                check = h3;
-            else if (i == 4)
-                check = h4;
-            else if (i == 5)
-                check = h5;
-            else if (i == 6)
-                check = h6;
-            else
-                check = h7;
-            for (int j=0; j<4&&keepChecking; j++) {
-                int b0 = (int)(check>>(j*8))&0xff;
-                int b1 = (int)(target[i*4+(3-j)])&0xff;
-                if (b0 < b1) 
-                    keepChecking = false;
-                if (b0 > b1) {
-                    isSolved = false;
-                    keepChecking = false;
-                }
-            }
-        }
-        if (isSolved) {
-            done[0] = true;
-            //
-            // Save the nonce in little-endian format
-            //
-            nonce[0] = (n>>>56) | ((n>>40)&0x000000000000ff00L) | 
-                        ((n>>24)&0x0000000000ff0000L) | ((n>>8)&0x00000000ff000000L) | 
-                        ((n<<8)&0x000000ff00000000L) | ((n<<24)&0x0000ff0000000000L) | 
-                        ((n<<40)&0x00ff000000000000L) | (n<<56);
-        }        
     }
 }

@@ -63,13 +63,13 @@ public abstract class HashFunction {
                 try {
                     System.loadLibrary(libraryName);
                     jniAvailable = true;
-                    log.info(String.format("JNI library %s loaded - using native hash routines", 
+                    log.info(String.format("JNI library %s loaded - using native CPU hash routines", 
                                            libraryName));
                 } catch (UnsatisfiedLinkError exc) {
-                    log.info(String.format("Native library %s is not available - using Java hash routines", 
+                    log.info(String.format("Native library %s is not available - using Java CPU hash routines", 
                                            libraryName));
                 } catch (Exception exc) {
-                    log.error(String.format("Unable to load native library %s - using Java hash routines",
+                    log.error(String.format("Unable to load native library %s - using Java CPU hash routines",
                                             libraryName), exc);
                 }
             }

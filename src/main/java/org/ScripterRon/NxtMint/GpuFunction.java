@@ -15,31 +15,122 @@
  */
 package org.ScripterRon.NxtMint;
 
-import com.amd.aparapi.Kernel;
-import com.amd.aparapi.Range;
+import org.jocl.CL;
+import org.jocl.CLException;
+import org.jocl.cl_command_queue;
+import org.jocl.cl_context;
+import org.jocl.cl_context_properties;
+import org.jocl.cl_device_id;
+import org.jocl.cl_kernel;
+import org.jocl.cl_mem;
+import org.jocl.cl_program;
+
+import java.io.InputStream;
+import java.io.IOException;
 
 /**
  * Currency minting hash functions using the GPU
  */
-public abstract class GpuFunction extends Kernel {
+public abstract class GpuFunction {
     
     /** GPU device */
     protected GpuDevice gpuDevice;
     
-    /** Execution range */
-    protected Range range;
-    
     /** Execution count */
     protected int count;
+    
+    /** Execution passes */
+    protected int passes;
+    
+    /** Global size */
+    protected int globalSize;
+    
+    /** Local size */
+    protected int localSize;
+    
+    /** Maximum memory allocation size */
+    protected long maxAllocationSize;
+    
+    /** Preferred local size */
+    protected int preferredLocalSize;
+    
+    /** Nonce */
+    protected long nonce;
+    
+    /** Target is met */
+    protected boolean meetsTarget;
+    
+    /** OpenCL context */
+    protected cl_context context;
+    
+    /** OpenCL command queue */
+    protected cl_command_queue commandQueue;
+    
+    /** OpenCL memory objects */
+    protected cl_mem[] memObjects;
+    
+    /** OpenCL kernel */
+    protected cl_kernel[] kernels;
+    
+    /** OpenCL resources allocated */
+    protected boolean resourcesAllocated;
     
     /**
      * Private constructor for use by subclasses
      * 
      * @param       gpuDevice       The GPU device
+     * @param       pgmNames        OpenCL program names
+     * @throws      CLException     OpenCL error occurred
+     * @throws      IOException     Unable to read OpenCL program source
      */
-    protected GpuFunction(GpuDevice gpuDevice) {
-        super();
+    protected GpuFunction(GpuDevice gpuDevice, String... pgmNames) throws CLException, IOException {
         this.gpuDevice = gpuDevice;
+        //
+        // Create the OpenCL context and associated command queue
+        //
+        cl_context_properties contextProperties = new cl_context_properties();
+        contextProperties.addProperty(CL.CL_CONTEXT_PLATFORM, gpuDevice.getPlatform());
+        context = CL.clCreateContext(contextProperties, 1, new cl_device_id[]{gpuDevice.getDevice()},
+                                     null, null, null);
+        commandQueue = CL.clCreateCommandQueue(context, gpuDevice.getDevice(), 0, null);
+        kernels = new cl_kernel[pgmNames.length];
+        //
+        // Build each kernel
+        //
+        for (int k=0; k<pgmNames.length; k++) {
+            String pgmName = pgmNames[k];
+            //
+            // Read the OpenCL program source from the application jar
+            //
+            String pgmSource;
+            try (InputStream classStream = getClass().getClassLoader()
+                                                     .getResourceAsStream("OpenCL/"+pgmName)) {
+                if (classStream == null)
+                    throw new IOException(String.format("OpenCL program '%s' not found", pgmName));
+                int pgmLength = classStream.available();
+                byte[] pgmBuffer = new byte[pgmLength];
+                int byteCount = classStream.read(pgmBuffer);
+                if (byteCount != pgmLength)
+                    throw new IOException(String.format("OpenCL program '%s' truncated", pgmName));
+                pgmSource = new String(pgmBuffer, "UTF-8");
+            }
+            //
+            // Compile and build the CL program
+            //
+            cl_program program = CL.clCreateProgramWithSource(context, 1, new String[]{pgmSource}, null, null);
+            CL.clBuildProgram(program, 0, null, null, null, null);
+            //
+            // Create the kernel
+            //
+            kernels[k] = CL.clCreateKernel(program, "run", null);
+            CL.clReleaseProgram(program);
+        }
+        //
+        // Get device information for use by subclasses
+        //
+        maxAllocationSize = OpenCL.getLong(gpuDevice.getDevice(), CL.CL_DEVICE_MAX_MEM_ALLOC_SIZE);
+        preferredLocalSize = (int)OpenCL.getSize(kernels[0], gpuDevice.getDevice(),
+                                                 CL.CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE);
     }
     
     /**
@@ -48,8 +139,10 @@ public abstract class GpuFunction extends Kernel {
      * @param       algorithm       Hash algorithm
      * @param       gpuDevice       GPU device
      * @return                      Hash function
+     * @throws      CLException     OpenCL error occurred
+     * @throws      IOException     Unable to read OpenCL program
      */
-    public static GpuFunction factory(int algorithm, GpuDevice gpuDevice) {
+    public static GpuFunction factory(int algorithm, GpuDevice gpuDevice) throws CLException, IOException {
         GpuFunction hashFunction;
         switch (algorithm) {
             case 2:                 // SHA256
@@ -78,6 +171,33 @@ public abstract class GpuFunction extends Kernel {
     }
 
     /**
+     * Check if we found a solution
+     * 
+     * @return                      TRUE if we found a solution
+     */
+    public boolean isSolved() {
+        return meetsTarget;
+    }
+    
+    /**
+     * Return the nonce used to solve the hash
+     * 
+     * @return                      Nonce
+     */
+    public long getNonce() {
+        return nonce;
+    }
+    
+    /**
+     * Return the execution count
+     * 
+     * @return                      Kernel execution count
+     */
+    public int getCount() {
+        return count;
+    }
+
+    /**
      * Set the input data and the hash target
      * 
      * The input data is in the following format:
@@ -94,32 +214,17 @@ public abstract class GpuFunction extends Kernel {
      * @param       targetBytes     Hash target (32 bytes)
      */
     public abstract void setInput(byte[] inputBytes, byte[] targetBytes);
-
-    /**
-     * Check if we found a solution
-     * 
-     * @return                      TRUE if we found a solution
-     */
-    public abstract boolean isSolved();
-    
-    /**
-     * Return the nonce used to solve the hash
-     * 
-     * @return                      Nonce
-     */
-    public abstract long getNonce();
     
     /**
      * Execute the kernel
-     */
-    public abstract void execute();
-    
-    /**
-     * Return the execution count
      * 
-     * @return                      Kernel execution count
+     * @return                      TRUE if the kernel was executed
      */
-    public int getCount() {
-        return count;
+    public abstract boolean execute();
+
+    /**
+     * Release OpenCL resources
+     */
+    public void dispose() {
     }
 }

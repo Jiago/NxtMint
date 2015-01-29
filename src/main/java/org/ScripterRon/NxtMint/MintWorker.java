@@ -18,8 +18,6 @@ import static org.ScripterRon.NxtMint.Main.log;
 
 import org.ScripterRon.NxtCore.MintingTarget;
 
-import com.amd.aparapi.Kernel;
-
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Date;
@@ -35,7 +33,7 @@ public class MintWorker implements Runnable {
     private final int workerId;
 
     /** GPU worker */
-    private final boolean gpuWorker;
+    private boolean gpuWorker;
 
     /** GPU identifier */
     private int gpuId;
@@ -83,8 +81,13 @@ public class MintWorker implements Runnable {
         this.gpuWorker = gpuWorker;
         hashFunction = HashFunction.factory(Main.currency.getAlgorithm());
         if (gpuWorker) {
-            gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm(), Main.gpuDeviceList.get(gpuId));
             this.gpuId = gpuId;
+            try {
+                gpuFunction = GpuFunction.factory(Main.currency.getAlgorithm(), Main.gpuDeviceList.get(gpuId));
+            } catch (Exception exc) {
+                log.error(String.format("Unable to initialize GPU %d - using CPU hashing", gpuId), exc);
+                this.gpuWorker = false;
+            }
         }
     }
 
@@ -184,6 +187,8 @@ public class MintWorker implements Runnable {
                 thread.interrupt();
                 thread.join(60000);
             }
+            if (gpuFunction != null)
+                gpuFunction.dispose();
         } catch (InterruptedException exc) {
             log.error("Unable to wait for worker to terminate");
         }
@@ -227,8 +232,7 @@ public class MintWorker implements Runnable {
     private boolean gpuHash(byte[] hashBytes, byte[] targetBytes) {
         boolean meetsTarget = false;
         gpuFunction.setInput(hashBytes, targetBytes);
-        gpuFunction.execute();
-        if (!gpuFunction.getExecutionMode().equals(Kernel.EXECUTION_MODE.GPU)) {
+        if (!gpuFunction.execute()) {
             log.warn("GPU execution did not complete, probably due to GPU resource shortage");
             log.info("Disabling GPU hashing and reverting to CPU hashing");
             gpuDisabled = true;
@@ -278,7 +282,7 @@ public class MintWorker implements Runnable {
      */
     public double getRate() {
         long currentTime = System.currentTimeMillis();
-        double rate = hashCount / (double) ((currentTime - startTime) / 1000);
+        double rate = hashCount/(double)((currentTime-startTime)/1000);
         return rate;
     }
 
