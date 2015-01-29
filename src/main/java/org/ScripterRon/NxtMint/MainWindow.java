@@ -274,7 +274,7 @@ public final class MainWindow extends JFrame implements ActionListener {
                    .divide(new BigDecimal(mintingTarget.getDifficulty()), 5, RoundingMode.HALF_EVEN)
                    .multiply(BigDecimal.valueOf(100D)).doubleValue();
 
-        hashrateLabel.setText(String.format("<html><b>Hashrate: %,.2f MHs/s</b></html>", 
+        hashrateLabel.setText(String.format("<html><b>Hashrate: %,.4f MHs/s</b></html>", 
                                     hashrate/1000000));
         totalHashesLabel.setText(String.format("<html><b>Total hashes: %,.2f MHs</b></html>", 
                                     (double)totalHashes/1000000));

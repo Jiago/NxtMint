@@ -145,7 +145,7 @@ public class WorkerDetailsDialog extends JDialog {
             long hashes = worker.getTotalHashes();
             double hashesRatio = (totalHashes>0 ? (((double)hashes/(double)totalHashes)*100.0) : 0);
 
-            hashrateLabel.setText(String.format("<html><b>Hashrate: %,.2f MH/s</b></html>", 
+            hashrateLabel.setText(String.format("<html><b>Hashrate: %,.4f MH/s</b></html>", 
                                         hashrate/1000000));
             hashrateRatioLabel.setText(String.format("<html><b>&#37; of total hashrate: %,.2f</b></html>", 
                                         hashrateRatio));
