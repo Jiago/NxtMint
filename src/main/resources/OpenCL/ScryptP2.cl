@@ -69,7 +69,7 @@ typedef struct This_s {
 
 /** Hash functions */
 static void hash(This *this, State *state);
-static void xorSalsa8(uint16 *X0, uint16 *X1);
+static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1);
 
 /**
  * Do the hash
@@ -100,7 +100,7 @@ static void hash(This *this, State *state) {
  * @param       X0              First block
  * @param       X1              Second block
  */
-static void xorSalsa8(uint16 *X0, uint16 *X1) {
+static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1) {
     *X0 ^= *X1;
     uint16 W = *X0;
     //
@@ -162,7 +162,7 @@ __kernel void run(__global uchar  *kernelData,
     this->solution = kernelData+72;
     this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
-    this->V = &V[get_global_id(0)*32*1024];
+    this->V = (__global uint16 * restrict)&V[get_global_id(0)*32*1024];
     //
     // Build the SCRYPT state
     //

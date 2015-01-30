@@ -422,9 +422,9 @@ static void processBlock(__global Digest *digest) {
 /**
  * Run the kernel
  */
-__kernel void run(__global uchar  *kernelData, 
-                  __global uchar  *stateBytes,
-                           int    passId) {
+__kernel void run(__global uchar * kernelData, 
+                  __global uchar * stateBytes,
+                           int     passId) {
     //
     // Pass kernel arguments to internal routines
     //
