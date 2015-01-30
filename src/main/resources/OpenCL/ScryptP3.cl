@@ -47,24 +47,24 @@ typedef struct {
  * SCRYPT state
  */
 typedef struct {
-    __global Digest  *digest;           /* SHA-256 digest (Phase 1 and 3) */
-    __global Digest  *ipadDigest;       /* Saved input pad digest (Phase 1 and 3) */
-    __global Digest  *opadDigest;       /* Saved output pad digest (Phase 1 and 3) */
-    BYTE    *B;                         /* Hash buffer (Phase 1 and 3) */
-    uint16  *X0;                        /* First half of Salsa array (All phases) */
-    uint16  *X1;                        /* Second half of Salsa array (All phases) */
+    __global Digest * restrict digest;          /* SHA-256 digest (Phase 1 and 3) */
+    __global Digest * restrict ipadDigest;      /* Saved input pad digest (Phase 1 and 3) */
+    __global Digest * restrict opadDigest;      /* Saved output pad digest (Phase 1 and 3) */
+             BYTE   * restrict B;               /* Hash buffer (Phase 1 and 3) */
+             uint16 * restrict X0;              /* First half of Salsa array (All phases) */
+             uint16 * restrict X1;              /* Second half of Salsa array (All phases) */
 } State;
 
 /** 
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar  *input;             /* Input data */
-    __global uchar  *target;            /* Hash target */
-    __global uint   *done;              /* Solution found indicator */
-    __global uchar  *solution;          /* Solution nonce */
-             int    passId;             /* Pass identifier */
-    __global uint   *V;                 /* SCRYPT salsa storage (Phase 2) */
+    __global uchar * restrict input;            /* Input data */
+    __global uchar * restrict target;           /* Hash target */
+    __global uint  * restrict done;             /* Solution found indicator */
+    __global uchar * restrict solution;         /* Solution nonce */
+             int              passId;           /* Pass identifier */
+    __global uint16* restrict V;                /* SCRYPT salsa storage (Phase 2) */
 } This;
 
 /*

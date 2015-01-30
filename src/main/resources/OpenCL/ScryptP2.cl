@@ -47,24 +47,24 @@ typedef struct {
  * SCRYPT state
  */
 typedef struct {
-    __global Digest  *digest;           /* SHA-256 digest (Phase 1 and 3) */
-    __global Digest  *ipadDigest;       /* Saved input pad digest (Phase 1 and 3) */
-    __global Digest  *opadDigest;       /* Saved output pad digest (Phase 1 and 3) */
-    BYTE    *B;                         /* Hash buffer (Phase 1 and 3) */
-    uint16  *X0;                        /* First half of Salsa array (All phases) */
-    uint16  *X1;                        /* Second half of Salsa array (All phases) */
+    __global Digest * restrict digest;          /* SHA-256 digest (Phase 1 and 3) */
+    __global Digest * restrict ipadDigest;      /* Saved input pad digest (Phase 1 and 3) */
+    __global Digest * restrict opadDigest;      /* Saved output pad digest (Phase 1 and 3) */
+             BYTE   * restrict B;               /* Hash buffer (Phase 1 and 3) */
+             uint16 * restrict X0;              /* First half of Salsa array (All phases) */
+             uint16 * restrict X1;              /* Second half of Salsa array (All phases) */
 } State;
 
 /** 
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar  *input;             /* Input data */
-    __global uchar  *target;            /* Hash target */
-    __global uint   *done;              /* Solution found indicator */
-    __global uchar  *solution;          /* Solution nonce */
-             int    passId;             /* Pass identifier */
-    __global uint   *V;                 /* SCRYPT salsa storage (Phase 2) */
+    __global uchar * restrict input;            /* Input data */
+    __global uchar * restrict target;           /* Hash target */
+    __global uint  * restrict done;             /* Solution found indicator */
+    __global uchar * restrict solution;         /* Solution nonce */
+             int              passId;           /* Pass identifier */
+    __global uint16* restrict V;                /* SCRYPT salsa storage (Phase 2) */
 } This;
 
 /** Hash functions */
@@ -75,22 +75,20 @@ static void xorSalsa8(uint16 *X0, uint16 *X1);
  * Do the hash
  */
 static void hash(This *this, State *state) {
-    uint   *pX0 = (uint *)state->X0;
-    uint   *pX1 = (uint *)state->X1;
     int    i;
     //
     // Perform the hashes
     //
-    for (i=0; i<1024; i++) {
-        *(__global uint16 *)&this->V[i*32] = *state->X0;
-        *(__global uint16 *)&this->V[i*32+16] = *state->X1;
+    for (i=0; i<2048; i+=2) {
+        this->V[i] = *state->X0;
+        this->V[i+1] = *state->X1;
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }
     for (i=0; i<1024; i++) {
-        int k = ((*state->X1).s0 & 1023) * 32;
-        *state->X0 ^= *(__global uint16 *)&this->V[k];
-        *state->X1 ^= *(__global uint16 *)&this->V[k+16];
+        int k = ((*state->X1).s0 & 1023) *2;
+        *state->X0 ^= this->V[k];
+        *state->X1 ^= this->V[k+1];
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }

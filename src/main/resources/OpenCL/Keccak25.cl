@@ -31,11 +31,11 @@ typedef uchar      BOOLEAN;
  * Kernel arguments 
  */
 typedef struct This_s {
-             ulong  *input;             /* Input data */
-    __global uchar  *target;            /* Hash target */
-    __global uint   *done;              /* Solution found indicator */
-    __global uchar  *solution;          /* Solution nonce */
-             int    passId;             /* Pass identifier */
+             ulong * restrict input;        /* Input data */
+    __global uchar * restrict target;       /* Hash target */
+    __global uint  * restrict done;         /* Solution found indicator */
+    __global uchar * restrict solution;     /* Solution nonce */
+             int              passId;       /* Pass identifier */
 } This;
 
 /**        
@@ -52,7 +52,6 @@ __constant LONG constants[] = {
 };
 
 /** Helper functions */
-//#define rotateLeft(x, c) (((x)<<(c)) | ((x)>>(64-(c))))
 #define rotateLeft(x, c) rotate(x, (ulong)(c))
 
 /**
