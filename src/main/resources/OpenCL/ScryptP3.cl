@@ -98,10 +98,8 @@ static void processBlock(__global Digest *digest);
 static void processWord(BYTE *buffer, int inOff, __global Digest *digest);
 static void copyDigest(__global Digest *tgtDigest, __global Digest *srcDigest);
 
-/** Rotate left for integer value */
-#define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
-
 /** SHA-256 manipulation functions */
+#define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
 #define Ch(x, y, z) (((x) & (y)) ^ ((~(x)) & (z)))
 #define Maj(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 #define Sum0(x) (rotateLeft(x, 30) ^ rotateLeft(x, 19) ^ rotateLeft(x, 10))
@@ -357,9 +355,9 @@ static void processBlock(__global Digest *digest) {
     UINT x, r0, r1;
     for (t=16; t<64; t++) {
         x = digest->DX[t-15];
-        r0 = ((x >> 7) | (x << 25)) ^ ((x >> 18) | (x << 14)) ^ (x >> 3);
+        r0 = rotateLeft(x, 25) ^ rotateLeft(x, 14) ^ (x >> 3);
         x = digest->DX[t-2];
-        r1 = ((x >> 17) | (x << 15)) ^ ((x >> 19) | (x << 13)) ^ (x >> 10);
+        r1 = rotateLeft(x, 15) ^ rotateLeft(x, 13) ^ (x >> 10);
         digest->DX[t] = r1 + digest->DX[t-7] + r0 + digest->DX[t-16];
     }
     UINT a = digest->DH[0];  UINT b = digest->DH[1];

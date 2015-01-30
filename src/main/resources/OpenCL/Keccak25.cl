@@ -51,6 +51,10 @@ __constant LONG constants[] = {
     1L
 };
 
+/** Helper functions */
+//#define rotateLeft(x, c) (((x)<<(c)) | ((x)>>(64-(c))))
+#define rotateLeft(x, c) rotate(x, (ulong)(c))
+
 /**
  * Perform a single hash
  */
@@ -71,33 +75,33 @@ static void hash(This *this) {
     for (i=0; i<25;) {
         t[0] = state[0] ^ state[5] ^ state[10] ^ state[15] ^ state[20];
         t[1] = state[2] ^ state[7] ^ state[12] ^ state[17] ^ state[22];
-        t[2] = t[0] ^ ((t[1] << 1) | (t[1] >> (64-1)));
+        t[2] = t[0] ^ rotateLeft(t[1], 1);
         t[11] = state[1] ^ t[2];
 
         t[3] = state[1] ^ state[6] ^ state[11] ^ state[16] ^ state[21];
         t[4] = state[3] ^ state[8] ^ state[13] ^ state[18] ^ state[23];
-        t[5] = t[3] ^ ((t[4] << 1) | (t[4] >> (64-1)));
+        t[5] = t[3] ^ rotateLeft(t[4], 1);
         t[12] = state[2] ^ t[5];
 
         t[6] = state[4] ^ state[9] ^ state[14] ^ state[19] ^ state[24];
-        t[7] = ((t[3] << 1) | (t[3] >> (64-1))) ^ t[6];
+        t[7] = rotateLeft(t[3], 1) ^ t[6];
         t[15] = state[6] ^ t[2];
-        t[15] = ((t[15] << 44) | (t[15] >> (64-44)));
+        t[15] = rotateLeft(t[15], 44);
         state[2] = state[12] ^ t[5];
-        state[2] = (state[2] << 43) | (state[2] >> (64-43));
+        state[2] = rotateLeft(state[2], 43);
         t[8] = state[0] ^ t[7];
         state[0] = t[8] ^ (~t[15] & state[2]) ^ (ULONG)constants[i++];
 
-        t[9] = ((t[6] << 1) | (t[6] >> (64-1))) ^ t[1];
+        t[9] = rotateLeft(t[6], 1) ^ t[1];
         t[13] = state[3] ^ t[9];
         state[3] = state[18] ^ t[9];
-        state[3] = (state[3] << 21) | (state[3] >> (64-21));
+        state[3] = rotateLeft(state[3], 21);
         state[1] = t[15] ^ (~state[2] & state[3]);
 
-        t[10] = ((t[0] << 1) | (t[0] >> (64-1))) ^ t[4];
+        t[10] = rotateLeft(t[0], 1) ^ t[4];
         t[14] = state[4] ^ t[10];
         state[4] = state[24] ^ t[10];
-        state[4] = (state[4] << 14) | (state[4] >> (64-14));
+        state[4] = rotateLeft(state[4], 14);
         state[2] ^= ((~state[3]) & state[4]);
 
         state[3] ^= ((~state[4]) & t[8]);
@@ -105,38 +109,38 @@ static void hash(This *this) {
         t[15] = state[5] ^ t[7];
         t[16] = state[7] ^ t[5];
         t[18] = state[9] ^ t[10];
-        t[18] = (t[18] << 20) | (t[18] >> (64-20));
-        t[13] = (t[13] << 28) | (t[13] >> (64-28));
+        t[18] = rotateLeft(t[18], 20);
+        t[13] = rotateLeft(t[13], 28);
         state[7] = state[10] ^ t[7];
-        state[7] = (state[7] << 3) | (state[7] >> (64-3));
+        state[7] = rotateLeft(state[7], 3);
         state[5] = t[13] ^ (~t[18] & state[7]);
 
         t[17] = state[8] ^ t[9];
         state[8] = state[16] ^ t[2];
-        state[8] = (state[8] << 45) | (state[8] >> (64-45));
+        state[8] = rotateLeft(state[8], 45);
         state[6] = t[18] ^ (~state[7] & state[8]);
 
         state[9] = state[22] ^ t[5];
-        state[9] = (state[9] << 61) | (state[9] >> (64-61));
+        state[9] = rotateLeft(state[9], 61);
         state[7] ^= ((~state[8]) & state[9]);
 
         state[8] ^= ((~state[9]) & t[13]);
         state[9] ^= ((~t[13]) & t[18]);
         t[18] = state[11] ^ t[2];
 
-        t[11] = (t[11] << 1) | (t[11] >> (64-1));
-        t[16] = (t[16] << 6) | (t[16] >> (64-6));
+        t[11] = rotateLeft(t[11], 1);
+        t[16] = rotateLeft(t[16], 6);
         state[12] = state[13] ^ t[9];
         state[12] = (state[12] << 25) | (state[12] >> (64-25));
         state[10] = t[11] ^ (~t[16] & state[12]);
 
         state[13] = state[19] ^ t[10];
-        state[13] = (state[13] << 8) | (state[13] >> (64-8));
+        state[13] = rotateLeft(state[13], 8);
         state[11] = t[16] ^ (~state[12] & state[13]);
 
         t[13] = state[14] ^ t[10];
         state[14] = state[20] ^ t[7];
-        state[14] = (state[14] << 18) | (state[14] >> (64-18));
+        state[14] = rotateLeft(state[14], 18);
         state[12] ^= ((~state[13]) & state[14]);
 
         state[13] ^= ((~state[14]) & t[11]);
@@ -144,31 +148,31 @@ static void hash(This *this) {
         t[11] = state[15] ^ t[7];
         t[16] = state[17] ^ t[5];
 
-        t[15] = (t[15] << 36) | (t[15] >> (64-36));
-        t[14] = (t[14] << 27) | (t[14] >> (64-27));
-        state[17] = (t[18] << 10) | (t[18] >> (64-10));
+        t[15] = rotateLeft(t[15], 36);
+        t[14] = rotateLeft(t[14], 27);
+        state[17] = rotateLeft(t[18], 10);
         state[15] = t[14] ^ (~t[15] & state[17]);
 
-        state[18] = (t[16] << 15) | (t[16] >> (64-15));
+        state[18] = rotateLeft(t[16], 15);
         state[16] = t[15] ^ (~state[17] & state[18]);
 
         state[19] = state[23] ^ t[9];
-        state[19] = (state[19] << 56) | (state[19] >> (64-56));
+        state[19] = rotateLeft(state[19], 56);
         state[17] ^= ((~state[18]) & state[19]);
 
         state[18] ^= ((~state[19]) & t[14]);
         state[19] ^= ((~t[14]) & t[15]);
         t[18] = state[21] ^ t[2];
 
-        t[12] = (t[12] << 62) | (t[12] >> (64-62));
-        t[17] = (t[17] << 55) | (t[17] >> (64-55));
-        state[22] = (t[13] << 39) | (t[13] >> (64-39));
+        t[12] = rotateLeft(t[12], 62);
+        t[17] = rotateLeft(t[17], 55);
+        state[22] = rotateLeft(t[13], 39);
         state[20] = t[12] ^ (~t[17] & state[22]);
 
-        state[23] = (t[11] << 41) | (t[11] >> (64-41));
+        state[23] = rotateLeft(t[11], 41);
         state[21] = t[17] ^ (~state[22] & state[23]);
 
-        state[24] = (t[18] << 2) | (t[18] >> (64-2));
+        state[24] = rotateLeft(t[18], 2);
         state[22] ^= ((~state[23]) & state[24]);
         state[23] ^= ((~state[24]) & t[12]);
         state[24] ^= ((~t[12]) & t[17]);
