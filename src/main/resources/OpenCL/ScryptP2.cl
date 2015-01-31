@@ -64,7 +64,7 @@ typedef struct This_s {
     __global uint  * restrict done;             /* Solution found indicator */
     __global uchar * restrict solution;         /* Solution nonce */
              int              passId;           /* Pass identifier */
-    __global uint16* restrict V;                /* SCRYPT salsa storage (Phase 2) */
+    __global uint  *          V;                /* Pad cache (Phase 2) */
 } This;
 
 /** Hash functions */
@@ -77,18 +77,28 @@ static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1);
 static void hash(This *this, State *state) {
     int    i;
     //
+    // The V array holds the pad cache.  To improve memory access performance, we
+    // will group the cache entries together for each pass within the same work group instead
+    // of grouping the entries together for each work item.  Each cache entry is 32
+    // unsigned integers and there are 1024 cache entries for each work item.
+    // 
+    int groupSize = get_local_size(0);
+    __global uint * vBase = this->V + (get_group_id(0)*groupSize*32*1024 + get_local_id(0)*32);
+    int vInc = groupSize*32;
+    //
     // Perform the hashes
     //
-    for (i=0; i<2048; i+=2) {
-        this->V[i] = *state->X0;
-        this->V[i+1] = *state->X1;
+    __global uint * pV = vBase;
+    for (i=0; i<1024; i++, pV+=vInc) {
+        *(__global uint16 *)pV = *state->X0;
+        *(__global uint16 *)(pV+16) = *state->X1;
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }
     for (i=0; i<1024; i++) {
-        int k = ((*state->X1).s0 & 1023) *2;
-        *state->X0 ^= this->V[k];
-        *state->X1 ^= this->V[k+1];
+        pV = vBase + (((*state->X1).s0 & 1023) * vInc);
+        *state->X0 ^= *(__global uint16 *)pV;
+        *state->X1 ^= *(__global uint16 *)(pV+16);
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }
@@ -148,10 +158,10 @@ static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1) {
 /**
  * Run the kernel
  */
-__kernel void run(__global uchar  *kernelData, 
-                  __global uchar  *stateBytes,
-                  __global uint   *V,
-                           int    passId) {
+__kernel void run(__global uchar * kernelData, 
+                  __global uchar * stateBytes,
+                  __global uint  * V,
+                           int     passId) {
     //
     // Pass kernel arguments to internal routines
     //
@@ -162,7 +172,7 @@ __kernel void run(__global uchar  *kernelData,
     this->solution = kernelData+72;
     this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
-    this->V = (__global uint16 * restrict)&V[get_global_id(0)*32*1024];
+    this->V = V;
     //
     // Build the SCRYPT state
     //

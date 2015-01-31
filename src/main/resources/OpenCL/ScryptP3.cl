@@ -64,7 +64,7 @@ typedef struct This_s {
     __global uint  * restrict done;             /* Solution found indicator */
     __global uchar * restrict solution;         /* Solution nonce */
              int              passId;           /* Pass identifier */
-    __global uint16* restrict V;                /* SCRYPT salsa storage (Phase 2) */
+    __global uint  *          V;                /* Pad cache (Phase 2) */
 } This;
 
 /*
