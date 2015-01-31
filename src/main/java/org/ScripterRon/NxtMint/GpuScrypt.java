@@ -65,6 +65,9 @@ public class GpuScrypt extends GpuFunction {
         // requires 128KB for this array.  We will need to adjust the global size
         // if the required memory exceeds the maximum allocation size for the device.
         //
+        // Some cards have a problem access large global memory buffers.  So we will
+        // restrict the pad cache buffer to 1/4 of the maximum allocation amount.
+        //
         if (Main.gpuIntensity > 1024) {
             log.warn("GPU intensity may not exceed 1024 - setting to maximum");
             count = 1024*1024;
@@ -80,12 +83,13 @@ public class GpuScrypt extends GpuFunction {
         else
             globalSize = (count/localSize)*localSize;
         if (count < globalSize)
-            globalSize = count;
+            globalSize = ((count+localSize-1)/localSize)*localSize;
         long allocationSize = 4*32*1024;        // V is INT[4*1024] for each work item
-        if (globalSize*allocationSize > maxAllocationSize) {
+        if (globalSize*allocationSize > maxAllocationSize/4) {
             log.warn(String.format("GPU %d: Maximum allocation size of %,dKB exceeded - reducing global size",
-                                   gpuDevice.getGpuId(), maxAllocationSize/1024));
-            globalSize = (int)(maxAllocationSize/allocationSize);
+                                   gpuDevice.getGpuId(), maxAllocationSize/(4*1024)));
+            globalSize = (int)(maxAllocationSize/(4*allocationSize));
+            globalSize = ((globalSize+localSize-1)/localSize)*localSize;
         }
         count = ((count+globalSize-1)/globalSize)*globalSize;
         passes = count/globalSize;

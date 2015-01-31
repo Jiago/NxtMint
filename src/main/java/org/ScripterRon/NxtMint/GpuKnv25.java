@@ -76,7 +76,7 @@ public class GpuKnv25 extends GpuFunction {
         else
             globalSize = (count/localSize)*localSize;
         if (count < globalSize)
-            globalSize = count;
+            globalSize = ((count+localSize-1)/localSize)*localSize;
         count = ((count+globalSize-1)/globalSize)*globalSize;
         passes = count/globalSize;
         kernelGlobalSize[0] = globalSize;
