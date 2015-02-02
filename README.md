@@ -90,7 +90,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
 
     The work group size specifies the number of work items per work group and defaults to 32.  Performance can sometimes be improved by setting the work group size to the number of cores in a compute unit.  You can determine this value by dividing the number of cores on the card by the number of compute units.  In addition, each card has a preferred work item multiple.  For example, if the preferred multiple is 32, work item sizes that are a multiple of 32 will often give better performance (unless there are resource limitations or memory contention).    
     
-    The work group count specifies the number of work groups per kernel execution.  If this parameter is omitted, the number of work groups is determined by the gpuIntensity value.  Performance can sometimes be improved by setting the work group count to the number of compute units for the device.  Multiple kernel execution passes will be performed if the work group count is smaller than the number required by the gpuIntensity.
+    The work group count specifies the number of work groups per kernel execution.  If this parameter is zero, the number of work groups is determined by the gpuIntensity value.  Performance can sometimes be improved by setting the work group count to the number of compute units for the device.  Multiple kernel execution passes will be performed if the work group count is smaller than the number required by the gpuIntensity.
     
   - enableGUI=true|false      
     Specifies whether or not to enable the GUI and defaults to true.  Disabling the GUI allows NxtMint to run in headless environments such as a disconnected service.      

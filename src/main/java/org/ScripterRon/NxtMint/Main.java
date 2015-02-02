@@ -279,7 +279,7 @@ public class Main {
                 if (gpuDevices.isEmpty()) {
                     gpuDevices.add(0);
                     gpuSizes.add(32);
-                    gpuCounts.add(32);
+                    gpuCounts.add(0);
                 }
                 buildGpuList();
                 for (int i=0; i<gpuDevices.size(); i++) {
@@ -434,11 +434,11 @@ public class Main {
                             if (splits.length > 2) {
                                 gpuCounts.add(Integer.valueOf(splits[2].trim()));
                             } else {
-                                gpuCounts.add(32);
+                                gpuCounts.add(0);
                             }
                         } else {
                             gpuSizes.add(32);
-                            gpuCounts.add(32);
+                            gpuCounts.add(0);
                         }
                         break;
                     case "enablegui":
