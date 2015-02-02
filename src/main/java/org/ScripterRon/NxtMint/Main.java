@@ -15,6 +15,7 @@
  */
 package org.ScripterRon.NxtMint;
 
+import org.ScripterRon.NxtCore.Account;
 import org.ScripterRon.NxtCore.Crypto;
 import org.ScripterRon.NxtCore.Currency;
 import org.ScripterRon.NxtCore.MintingTarget;
@@ -250,6 +251,13 @@ public class Main {
             // Initialize the NxtCore library
             //
             Nxt.init(nxtHost, apiPort);
+            //
+            // Ensure the account is funded
+            //
+            Account account = Nxt.getAccount(accountId);
+            if (account.getConfirmedBalance() < 1*Nxt.NQT_ADJUST)
+                throw new IllegalArgumentException(String.format("Account %s confirmed balance is less than 1 Nxt",
+                                                   Utils.getAccountRsId(accountId)));
             //
             // Get the currency definition
             //
