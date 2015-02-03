@@ -61,12 +61,7 @@ public class GpuKnv25 extends GpuFunction {
         //
         // Calculate the local and global sizes
         //
-        if (Main.gpuIntensity > 1024) {
-            log.warn("GPU intensity may not exceed 1024 - setting to maximum");
-            count = 1024*1024;
-        } else {
-            count = Main.gpuIntensity*1024;
-        }
+        count = Main.gpuIntensity*1024;
         localSize = gpuDevice.getWorkGroupSize();
         if (localSize%preferredLocalSize != 0)
             log.warn(String.format("GPU %d: Preferred work group size multiple is %d",

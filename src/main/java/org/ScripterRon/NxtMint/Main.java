@@ -206,8 +206,8 @@ public class Main {
                 throw new IllegalArgumentException("Secret phrase not specified");
             if (currencyCode==null || currencyCode.length()<3 || currencyCode.length()>5)
                 throw new IllegalArgumentException("Currency code is not valid");
-            if (gpuIntensity > 1024)
-                throw new IllegalArgumentException("Maximum gpuIntensity is 1024");
+            if (gpuIntensity > 1048576)
+                throw new IllegalArgumentException("Maximum gpuIntensity is 1,048,576");
             accountId = Utils.getAccountId(Crypto.getPublicKey(secretPhrase));
             //
             // Get the application build properties
@@ -286,7 +286,7 @@ public class Main {
             if (gpuIntensity > 0) {
                 if (gpuDevices.isEmpty()) {
                     gpuDevices.add(0);
-                    gpuSizes.add(32);
+                    gpuSizes.add(256);
                     gpuCounts.add(0);
                 }
                 buildGpuList();
@@ -445,7 +445,7 @@ public class Main {
                                 gpuCounts.add(0);
                             }
                         } else {
-                            gpuSizes.add(32);
+                            gpuSizes.add(256);
                             gpuCounts.add(0);
                         }
                         break;

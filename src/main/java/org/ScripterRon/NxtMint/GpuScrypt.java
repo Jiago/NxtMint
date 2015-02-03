@@ -68,12 +68,7 @@ public class GpuScrypt extends GpuFunction {
         // Some cards have a problem access large global memory buffers.  So we will
         // restrict the pad cache buffer to 1/4 of the maximum allocation amount.
         //
-        if (Main.gpuIntensity > 1024) {
-            log.warn("GPU intensity may not exceed 1024 - setting to maximum");
-            count = 1024*1024;
-        } else {
-            count = Main.gpuIntensity*1024;
-        }
+        count = Main.gpuIntensity*1024;
         localSize = gpuDevice.getWorkGroupSize();
         if (localSize%preferredLocalSize != 0)
             log.info(String.format("GPU %d: Preferred work group size multiple is %d",

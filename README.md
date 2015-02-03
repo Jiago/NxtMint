@@ -15,19 +15,19 @@ Installation
 
 Application data will be stored in a system-specific directory unless you specify your own directory using the -Dnxt.datadir command-line option.  The default directories are:
 
-	- Linux: user-home/.NxtMint	    
-	- Mac: user-home/Library/Application Support/NxtMint    
-	- Windows: user-home\AppData\Roaming\NxtMint	    
-        
-Perform the following steps to install NxtMint on your system.
+  - Linux: user-home/.NxtMint	    
+  - Mac: user-home/Library/Application Support/NxtMint    
+  - Windows: user-home\AppData\Roaming\NxtMint	    
+  
+Perform the following steps to install NxtMint on your system:
 
-    - Install the Java 8 runtime if you do not already have it installed.     
-    - Download the latest version from https://github.com/ScripterRon/NxtMint/releases.       
-    - Extract the files from the archive in a directory of your choice.   
-    - Copy sample.NxtMint.conf to the application data directory and rename it to NxtMint.conf.  Edit the file to specify your desired NRS server, your secret passphrase (the passphrase will not be sent to the server) and the desired number of CPU threads and/or GPU intensity.  If you are using the GPU, start with gpuIntensity=1 and gpuDevice=0,32,32 and then increase the values until either there is no further improvement in the hash rate or your graphics card begins to overheat.  Your device driver will fail to load the OpenCL kernel if you exceed the available resources (this is especially true for Scrypt since it has a large memory requirement).  The global size (work group size * work group count) determines how much storage is required.    
-    - Copy sample.logging.properties to the application data directory and rename it to logging.properties.  Edit the log file name if you want to place it somewhere other than the temporary directory for your userid.     
-    - Install OpenCL if you want to use the GPU for mining.  The OpenCL runtime library must be in PATH (Windows) or LD_LIBRARY_PATH (Linux).
-    - Rename sample.mint.sh to mint.sh and sample.mint.bat to mint.bat.  Edit the appropriate file to fit your needs. 
+  - Install the Java 8 runtime if you do not already have it installed.     
+  - Download the latest version from https://github.com/ScripterRon/NxtMint/releases.       
+  - Extract the files from the archive in a directory of your choice.   
+  - Copy sample.NxtMint.conf to the application data directory and rename it to NxtMint.conf.  Edit the file to specify your desired NRS server, your secret passphrase (the passphrase will not be sent to the server) and the desired number of CPU threads and/or GPU intensity.  If you are using the GPU, start with gpuIntensity=1 and gpuDevice=0,32,32 and then increase the values until either there is no further improvement in the hash rate or your graphics card begins to overheat.  Your device driver will fail to load the OpenCL kernel if you exceed the available resources (this is especially true for Scrypt since it has a large memory requirement).  The global size (work group size * work group count) determines how much storage is required.    
+  - Copy sample.logging.properties to the application data directory and rename it to logging.properties.  Edit the log file name if you want to place it somewhere other than the temporary directory for your userid.     
+  - Install OpenCL if you want to use the GPU for mining.  The OpenCL runtime library must be in PATH (Windows) or LD_LIBRARY_PATH (Linux).
+  - Rename sample.mint.sh to mint.sh and sample.mint.bat to mint.bat.  Edit the appropriate file to fit your needs. 
 
 
 Build
@@ -83,14 +83,14 @@ The following configuration options can be specified in NxtMint.conf.  This file
     Specifies the number of CPU threads to be used and defaults to 1.  Specifying a thread count greater than the number of CPU processors will not improve minting since the mint algorithms are CPU-intensive and will drive each processor to 100% utilization.  Decrease the thread count if your computer becomes too hot or system response degrades significantly.  No CPU threads will be used if cpuThreads is 0.     
     
   - gpuIntensity=count    
-    Specifies the GPU computation intensity and defaults to 0.  Your graphics card must support OpenCL in order to use the GPU.  You will need to try different values to determine an acceptable hash rate.  Specifying too large a value will result in performance degradation and GPU memory errors.  Start with an initial value of 1 and raise or lower needed.  A GPU will not be used if gpuIntensity is 0.   
+    Specifies the total number of GPU work items multiplied by 1024.  A GPU will not be used if gpuIntensity is 0.  gpuIntensity is an integer between 0 and 1,048,576 and defaults to 0.  Your graphics card must support OpenCL in order to use the GPU.  You will need to try different values to determine an acceptable hash rate.  Specifying too large a value can result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.  Set gpuDevice=0,n,0 where n is the number of cores per compute unit for your adapter.      
     
   - gpuDevice=index,wsize,gcount
     Specifies the GPU device number (0, 1, 2, ...), the work group size and the work group count.  The first GPU device will be used if this parameter is omitted.  This parameter can be repeated to use multiple GPU devices.  The GPU devices that are available are listed when NxtMint starts if a non-zero value for gpuIntensity is specified.  
 
-    The work group size specifies the number of work items per work group and defaults to 32.  Performance can sometimes be improved by setting the work group size to the number of cores in a compute unit.  You can determine this value by dividing the number of cores on the card by the number of compute units.  In addition, each card has a preferred work item multiple.  For example, if the preferred multiple is 32, work item sizes that are a multiple of 32 will often give better performance (unless there are resource limitations or memory contention).    
+    The work group size specifies the number of work items per work group and defaults to 256.  Performance can sometimes be improved by setting the work group size to the number of cores in a compute unit.  You can determine this value by dividing the number of cores on the card by the number of compute units.  In addition, each card has a preferred work item multiple.  For example, if the preferred multiple is 32, work item sizes that are a multiple of 32 will often give better performance (unless there are resource limitations or memory contention).    
     
-    The work group count specifies the number of work groups per kernel execution.  If this parameter is zero, the number of work groups is determined by the gpuIntensity value.  Performance can sometimes be improved by setting the work group count to the number of compute units for the device.  Multiple kernel execution passes will be performed if the work group count is smaller than the number required by the gpuIntensity.
+    The work group count specifies the number of work groups per kernel execution.  If this parameter is zero, the number of work groups is determined by the gpuIntensity value.  The number of work items per kernel execution is (work group size * work group count).  Multiple kernel execution passes will be performed if the work group count is smaller than the number required by the gpuIntensity.  For example, gpuIntensity=10 means there will be a total of 10,240 work items.  If gpuDevice=0,32,64, then there will be 2048 work items per kernel execution.  This means there will be 5 execution passes before control returns to the Java mint worker.  If gpuDevice=0,32,0, then the group count will be calculated as (total work items / work group size) = 10,240/32 or 320.  This means there will be 1 execution pass before control returns to the Java mint worker.  A single execution pass gives the best hash rate but your adapter card may place an upper limit on the global size (number of work items in a single kernel execution).  NxtMint will display the calculated values for local size (work items per work group), global size (total work items per kernel execution) and number of kernel passes when it starts a GPU worker.
     
   - enableGUI=true|false      
     Specifies whether or not to enable the GUI and defaults to true.  Disabling the GUI allows NxtMint to run in headless environments such as a disconnected service.      
