@@ -58,103 +58,101 @@ __constant LONG constants[] = {
  * Perform a single hash
  */
 static void hash(This *this) {
-    int i, j;
-    ULONG state[25];
-    ULONG t[19];
-    state[0] = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);  
-    state[1] = this->input[1];
-    state[2] = this->input[2];  
-    state[3] = this->input[3];
-    state[4] = this->input[4];
-    state[5] = 1;   state[6] = 0;   state[7] = 0;   state[8] = 0;   state[9] = 0;
-    state[10] = 0;  state[11] = 0;  state[12] = 0;  state[13] = 0;  state[14] = 0;
-    state[15] = 0;  state[16] = 0x8000000000000000L;           
-    state[17] = 0;  state[18] = 0;  state[19] = 0;  state[20] = 0;  state[21] = 0;
-    state[22] = 0;  state[23] = 0;  state[24] = 0;
+    ULONG state0 = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);  
+    ULONG state1 = this->input[1];
+    ULONG state2 = this->input[2];  
+    ULONG state3 = this->input[3];
+    ULONG state4 = this->input[4];
+    ULONG state5 = 1;   ULONG state6 = 0;   ULONG state7 = 0;   ULONG state8 = 0;   ULONG state9 = 0;
+    ULONG state10 = 0;  ULONG state11 = 0;  ULONG state12 = 0;  ULONG state13 = 0;  ULONG state14 = 0;
+    ULONG state15 = 0;  ULONG state16 = 0x8000000000000000L;           
+    ULONG state17 = 0;  ULONG state18 = 0;  ULONG state19 = 0;  ULONG state20 = 0;  ULONG state21 = 0;
+    ULONG state22 = 0;  ULONG state23 = 0;  ULONG state24 = 0;
+    int i;
     for (i=0; i<25; i++) {
-        t[0] = state[0] ^ state[5] ^ state[10] ^ state[15] ^ state[20];
-        t[1] = state[2] ^ state[7] ^ state[12] ^ state[17] ^ state[22];
-        t[3] = state[1] ^ state[6] ^ state[11] ^ state[16] ^ state[21];
-        t[4] = state[3] ^ state[8] ^ state[13] ^ state[18] ^ state[23];
-        t[6] = state[4] ^ state[9] ^ state[14] ^ state[19] ^ state[24];
+        ULONG t0 = state0 ^ state5 ^ state10 ^ state15 ^ state20;
+        ULONG t1 = state1 ^ state6 ^ state11 ^ state16 ^ state21;
+        ULONG t2 = state2 ^ state7 ^ state12 ^ state17 ^ state22;
+        ULONG t3 = state3 ^ state8 ^ state13 ^ state18 ^ state23;
+        ULONG t4 = state4 ^ state9 ^ state14 ^ state19 ^ state24;
         
-        t[2] = t[0] ^ rotateLeft(t[1], 1);
-        t[5] = t[3] ^ rotateLeft(t[4], 1);
-        t[7] = t[6] ^ rotateLeft(t[3], 1);
-        t[9] = t[1] ^ rotateLeft(t[6], 1);
-        t[10] = t[4] ^ rotateLeft(t[0], 1);
+        ULONG u0 = t0 ^ rotateLeft(t2, 1);
+        ULONG u1 = t1 ^ rotateLeft(t3, 1);
+        ULONG u2 = t2 ^ rotateLeft(t4, 1);
+        ULONG u3 = t3 ^ rotateLeft(t0, 1);
+        ULONG u4 = t4 ^ rotateLeft(t1, 1);
         
-        t[8] = state[0] ^ t[7];
-        t[11] = state[1] ^ t[2];
-        t[12] = state[2] ^ t[5];
-        t[13] = state[3] ^ t[9];
-        t[14] = state[4] ^ t[10];
-        t[15] = rotateLeft(state[6] ^ t[2], 44);
+        t0 = state0 ^ u4;
+        t1 = state1 ^ u0;
+        t2 = state2 ^ u1;
+        t3 = state3 ^ u2;
+        t4 = state4 ^ u3;
         
-        state[2] = rotateLeft(state[12] ^ t[5], 43);
-        state[0] = t[8] ^ (~t[15] & state[2]) ^ (ULONG)constants[i];
-        state[3] = rotateLeft(state[18] ^ t[9], 21);
-        state[1] = t[15] ^ (~state[2] & state[3]);
-        state[4] = rotateLeft(state[24] ^ t[10], 14);
-        state[2] ^= ((~state[3]) & state[4]);
-        state[3] ^= ((~state[4]) & t[8]);
-        state[4] ^= ((~t[8]) & t[15]);
+        ULONG w0 = rotateLeft(state6 ^ u0, 44);
+        state2 = rotateLeft(state12 ^ u1, 43);
+        state0 = t0 ^ (~w0 & state2) ^ (ULONG)constants[i];
+        state3 = rotateLeft(state18 ^ u2, 21);
+        state1 = w0 ^ (~state2 & state3);
+        state4 = rotateLeft(state24 ^ u3, 14);
+        state2 ^= (~state3 & state4);
+        state3 ^= (~state4 & t0);
+        state4 ^= (~t0 & w0);
         
-        t[15] = state[5] ^ t[7];
-        t[16] = state[7] ^ t[5];
-        t[18] = rotateLeft(state[9] ^ t[10], 20);
-        t[13] = rotateLeft(t[13], 28);
-        t[17] = state[8] ^ t[9];
+        w0 = state5 ^ u4;
+        ULONG w1 = state7 ^ u1;
+        ULONG w2 = state8 ^ u2;
+        ULONG w3 = rotateLeft(state9 ^ u3, 20);
         
-        state[7] = rotateLeft(state[10] ^ t[7], 3);
-        state[5] = t[13] ^ (~t[18] & state[7]);
-        state[8] = rotateLeft(state[16] ^ t[2], 45);
-        state[6] = t[18] ^ (~state[7] & state[8]);
-        state[9] = rotateLeft(state[22] ^ t[5], 61);
-        state[7] ^= ((~state[8]) & state[9]);
-        state[8] ^= ((~state[9]) & t[13]);
-        state[9] ^= ((~t[13]) & t[18]);
+        t3 = rotateLeft(t3, 28);
+        state7 = rotateLeft(state10 ^ u4, 3);
+        state5 = t3 ^ (~w3 & state7);
+        state8 = rotateLeft(state16 ^ u0, 45);
+        state6 = w3 ^ (~state7 & state8);
+        state9 = rotateLeft(state22 ^ u1, 61);
+        state7 ^= (~state8 & state9);
+        state8 ^= (~state9 & t3);
+        state9 ^= (~t3 & w3);
         
-        t[18] = state[11] ^ t[2];
-        t[11] = rotateLeft(t[11], 1);
-        t[16] = rotateLeft(t[16], 6);
-        t[13] = state[14] ^ t[10];
+        w3 = state11 ^ u0;
+        t1 = rotateLeft(t1, 1);
+        w1 = rotateLeft(w1, 6);
+        t3 = state14 ^ u3;
         
-        state[12] = rotateLeft(state[13] ^ t[9], 25);
-        state[10] = t[11] ^ (~t[16] & state[12]);
-        state[13] = rotateLeft(state[19] ^ t[10], 8);
-        state[11] = t[16] ^ (~state[12] & state[13]);
-        state[14] = rotateLeft(state[20] ^ t[7], 18);
-        state[12] ^= ((~state[13]) & state[14]);
-        state[13] ^= ((~state[14]) & t[11]);
-        state[14] ^= ((~t[11]) & t[16]);
+        state12 = rotateLeft(state13 ^ u2, 25);
+        state10 = t1 ^ (~w1 & state12);
+        state13 = rotateLeft(state19 ^ u3, 8);
+        state11 = w1 ^ (~state12 & state13);
+        state14 = rotateLeft(state20 ^ u4, 18);
+        state12 ^= (~state13 & state14);
+        state13 ^= (~state14 & t1);
+        state14 ^= (~t1 & w1);
         
-        t[11] = state[15] ^ t[7];
-        t[16] = state[17] ^ t[5];
-        t[15] = rotateLeft(t[15], 36);
-        t[14] = rotateLeft(t[14], 27);
+        t1 = state15 ^ u4;
+        w1 = state17 ^ u1;
+        w0 = rotateLeft(w0, 36);
+        t4 = rotateLeft(t4, 27);
         
-        state[17] = rotateLeft(t[18], 10);
-        state[15] = t[14] ^ (~t[15] & state[17]);
-        state[18] = rotateLeft(t[16], 15);
-        state[16] = t[15] ^ (~state[17] & state[18]);
-        state[19] = rotateLeft(state[23] ^ t[9], 56);
-        state[17] ^= ((~state[18]) & state[19]);
-        state[18] ^= ((~state[19]) & t[14]);
-        state[19] ^= ((~t[14]) & t[15]);
+        state17 = rotateLeft(w3, 10);
+        state15 = t4 ^ (~w0 & state17);
+        state18 = rotateLeft(w1, 15);
+        state16 = w0 ^ (~state17 & state18);
+        state19 = rotateLeft(state23 ^ u2, 56);
+        state17 ^= (~state18 & state19);
+        state18 ^= (~state19 & t4);
+        state19 ^= (~t4 & w0);
         
-        t[18] = state[21] ^ t[2];
-        t[12] = rotateLeft(t[12], 62);
-        t[17] = rotateLeft(t[17], 55);
+        w3 = state21 ^ u0;
+        t2 = rotateLeft(t2, 62);
+        w2 = rotateLeft(w2, 55);
         
-        state[22] = rotateLeft(t[13], 39);
-        state[20] = t[12] ^ (~t[17] & state[22]);
-        state[23] = rotateLeft(t[11], 41);
-        state[21] = t[17] ^ (~state[22] & state[23]);
-        state[24] = rotateLeft(t[18], 2);
-        state[22] ^= ((~state[23]) & state[24]);
-        state[23] ^= ((~state[24]) & t[12]);
-        state[24] ^= ((~t[12]) & t[17]);
+        state22 = rotateLeft(t3, 39);
+        state20 = t2 ^ (~w2 & state22);
+        state23 = rotateLeft(t1, 41);
+        state21 = w2 ^ (~state22 & state23);
+        state24 = rotateLeft(w3, 2);
+        state22 ^= (~state23 & state24);
+        state23 ^= (~state24 & t2);
+        state24 ^= (~t2 & w2);
     }    
     //
     // Check if we met the target
@@ -162,15 +160,16 @@ static void hash(This *this) {
     BOOLEAN isSolved = TRUE;
     BOOLEAN keepChecking = TRUE;
     ULONG check;
+    int j;
     for (i=3; i>=0 && keepChecking; i--) {
-        if (i == 0)
-            check = state[0];
-        else if (i == 1)
-            check = state[1];
+        if (i == 3)
+            check = state3;
         else if (i == 2)
-            check = state[2];
+            check = state2;
+        else if (i == 1)
+            check = state1;
         else
-            check = state[3];
+            check = state0;
         for (j=7; j>=0 && keepChecking; j--) {
             int b0 = (int)(check>>(j*8))&0xff;
             int b1 = (int)(this->target[i*8+j])&0xff;
