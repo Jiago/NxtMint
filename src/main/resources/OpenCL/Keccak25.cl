@@ -83,12 +83,16 @@ static void hash(This *this) {
         ULONG u4 = t4 ^ rotateLeft(t1, 1);
         
         t0 = state0 ^ u4;
-        t1 = state1 ^ u0;
-        t2 = state2 ^ u1;
-        t3 = state3 ^ u2;
-        t4 = state4 ^ u3;
+        t1 = rotateLeft(state1 ^ u0, 1);
+        t2 = rotateLeft(state2 ^ u1, 62);
+        t3 = rotateLeft(state3 ^ u2, 28);
+        t4 = rotateLeft(state4 ^ u3, 27);
         
         ULONG w0 = rotateLeft(state6 ^ u0, 44);
+        ULONG w1 = rotateLeft(state7 ^ u1, 6);
+        ULONG w2 = rotateLeft(state8 ^ u2, 55);
+        ULONG w3 = rotateLeft(state9 ^ u3, 20);
+        
         state2 = rotateLeft(state12 ^ u1, 43);
         state0 = t0 ^ (~w0 & state2) ^ (ULONG)constants[i];
         state3 = rotateLeft(state18 ^ u2, 21);
@@ -98,12 +102,7 @@ static void hash(This *this) {
         state3 ^= (~state4 & t0);
         state4 ^= (~t0 & w0);
         
-        w0 = state5 ^ u4;
-        ULONG w1 = state7 ^ u1;
-        ULONG w2 = state8 ^ u2;
-        ULONG w3 = rotateLeft(state9 ^ u3, 20);
-        
-        t3 = rotateLeft(t3, 28);
+        w0 = rotateLeft(state5 ^ u4, 36);
         state7 = rotateLeft(state10 ^ u4, 3);
         state5 = t3 ^ (~w3 & state7);
         state8 = rotateLeft(state16 ^ u0, 45);
@@ -114,10 +113,7 @@ static void hash(This *this) {
         state9 ^= (~t3 & w3);
         
         w3 = state11 ^ u0;
-        t1 = rotateLeft(t1, 1);
-        w1 = rotateLeft(w1, 6);
         t3 = state14 ^ u3;
-        
         state12 = rotateLeft(state13 ^ u2, 25);
         state10 = t1 ^ (~w1 & state12);
         state13 = rotateLeft(state19 ^ u3, 8);
@@ -129,9 +125,6 @@ static void hash(This *this) {
         
         t1 = state15 ^ u4;
         w1 = state17 ^ u1;
-        w0 = rotateLeft(w0, 36);
-        t4 = rotateLeft(t4, 27);
-        
         state17 = rotateLeft(w3, 10);
         state15 = t4 ^ (~w0 & state17);
         state18 = rotateLeft(w1, 15);
@@ -142,9 +135,6 @@ static void hash(This *this) {
         state19 ^= (~t4 & w0);
         
         w3 = state21 ^ u0;
-        t2 = rotateLeft(t2, 62);
-        w2 = rotateLeft(w2, 55);
-        
         state22 = rotateLeft(t3, 39);
         state20 = t2 ^ (~w2 & state22);
         state23 = rotateLeft(t1, 41);
