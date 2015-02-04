@@ -20,6 +20,7 @@ import org.ScripterRon.NxtCore.Crypto;
 import org.ScripterRon.NxtCore.Currency;
 import org.ScripterRon.NxtCore.MintingTarget;
 import org.ScripterRon.NxtCore.Nxt;
+import org.ScripterRon.NxtCore.NxtException;
 import org.ScripterRon.NxtCore.Utils;
 
 import org.slf4j.Logger;
@@ -319,7 +320,10 @@ public class Main {
             //
             Mint.mint();
         } catch (Exception exc) {
-            log.error("Exception during program initialization", exc);
+            if ((exc instanceof IllegalArgumentException) || (exc instanceof NxtException))
+                log.error(exc.getMessage());
+            else
+                log.error("Exception during program initialization", exc);
         }
     }
     
@@ -412,53 +416,58 @@ public class Main {
                     throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));
                 String option = line.substring(0, sep).trim().toLowerCase();
                 String value = line.substring(sep+1).trim();
-                switch (option) {
-                    case "connect":
-                        nxtHost = value;
-                        break;
-                    case "apiport":
-                        apiPort = Integer.valueOf(value);
-                        break;
-                    case "secretphrase":
-                        secretPhrase = value;
-                        break;
-                    case "currency":
-                        currencyCode = value;
-                        break;
-                    case "units":
-                        currencyUnits = Double.valueOf(value);
-                        break;
-                    case "cputhreads":
-                        cpuThreads = Integer.valueOf(value);
-                        break;
-                    case "gpuintensity":
-                        gpuIntensity = Integer.valueOf(value);
-                        break;
-                    case "gpudevice":
-                        String[] splits = value.split(",");
-                        gpuDevices.add(Integer.valueOf(splits[0].trim()));
-                        if (splits.length > 1) {
-                            gpuSizes.add(Integer.valueOf(splits[1].trim()));
-                            if (splits.length > 2) {
-                                gpuCounts.add(Integer.valueOf(splits[2].trim()));
+                try {
+                    switch (option) {
+                        case "connect":
+                            nxtHost = value;
+                            break;
+                        case "apiport":
+                            apiPort = Integer.valueOf(value);
+                            break;
+                        case "secretphrase":
+                            secretPhrase = value;
+                            break;
+                        case "currency":
+                            currencyCode = value;
+                            break;
+                        case "units":
+                            currencyUnits = Double.valueOf(value);
+                            break;
+                        case "cputhreads":
+                            cpuThreads = Integer.valueOf(value);
+                            break;
+                        case "gpuintensity":
+                            gpuIntensity = Integer.valueOf(value);
+                            break;
+                        case "gpudevice":
+                            String[] splits = value.split(",");
+                            gpuDevices.add(Integer.valueOf(splits[0].trim()));
+                            if (splits.length > 1) {
+                                gpuSizes.add(Integer.valueOf(splits[1].trim()));
+                                if (splits.length > 2) {
+                                    gpuCounts.add(Integer.valueOf(splits[2].trim()));
+                                } else {
+                                    gpuCounts.add(0);
+                                }
                             } else {
+                                gpuSizes.add(256);
                                 gpuCounts.add(0);
                             }
-                        } else {
-                            gpuSizes.add(256);
-                            gpuCounts.add(0);
-                        }
-                        break;
-                    case "enablegui":
-                        if (value.equalsIgnoreCase("true"))
-                            enableGUI = true;
-                        else if (value.equalsIgnoreCase("false"))
-                            enableGUI = false;
-                        else
-                            throw new IllegalArgumentException(String.format("enableGUI must be TRUE or FALSE"));
-                        break;
-                    default:
-                        throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));
+                            break;
+                        case "enablegui":
+                            if (value.equalsIgnoreCase("true"))
+                                enableGUI = true;
+                            else if (value.equalsIgnoreCase("false"))
+                                enableGUI = false;
+                            else
+                                throw new IllegalArgumentException(String.format("enableGUI must be TRUE or FALSE"));
+                            break;
+                        default:
+                            throw new IllegalArgumentException(String.format("Invalid configuration option: %s", line));
+                    }
+                } catch (NumberFormatException exc) {
+                    throw new IllegalArgumentException(String.format("Invalid numeric value for '%s' option",
+                                                       option));
                 }
             }
         }
