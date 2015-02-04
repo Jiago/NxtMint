@@ -161,8 +161,7 @@ public class GpuKnv25 extends GpuFunction {
                 CL.clEnqueueReadBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
                                        Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
                                        0, null, null);
-                meetsTarget = (kernelData[doneOffset]!=0   || kernelData[doneOffset+1]!=0 ||
-                               kernelData[doneOffset+2]!=0 || kernelData[doneOffset+3]!=0);
+                meetsTarget = (kernelData[doneOffset]!=0);
                 if (meetsTarget)
                     break;
             }

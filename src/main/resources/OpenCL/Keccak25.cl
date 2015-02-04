@@ -31,10 +31,10 @@ typedef uchar      BOOLEAN;
  * Kernel arguments 
  */
 typedef struct This_s {
-             ulong * restrict input;        /* Input data */
+    __global ulong * restrict input;        /* Input data */
     __global uchar * restrict target;       /* Hash target */
     __global uint  * restrict done;         /* Solution found indicator */
-    __global uchar * restrict solution;     /* Solution nonce */
+    __global ulong * restrict solution;     /* Solution nonce */
              int              passId;       /* Pass identifier */
 } This;
 
@@ -165,7 +165,7 @@ static void hash(This *this) {
             int b1 = (int)(this->target[i*8+j])&0xff;
             if (b0 < b1) {
                 keepChecking = FALSE;
-            } if (b0 > b1) {
+            } else if (b0 > b1) {
                 isSolved = FALSE;
                 keepChecking = FALSE;
             }
@@ -175,11 +175,8 @@ static void hash(This *this) {
     // Return the nonce if we have a solution
     //
     if (isSolved!=0 && atomic_cmpxchg(this->done, 0, 1)==0) {
-        ULONG nonce = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
-        for (i=0; i<8; i++)
-            this->solution[i] = (uchar)(nonce>>(i*8));
+        this->solution[0] = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
     }
-    return;
 }
 
 /**
@@ -189,26 +186,13 @@ __kernel void run(__global uchar  *kernelData,
                            int    passId) {
     int i, offset;
     //
-    // Convert the input data to unsigned long integers
-    //
-    ULONG input[5];
-    for (i=0; i<5; i++)
-        input[i] = ((ULONG)kernelData[i*8+0]) |
-                   ((ULONG)kernelData[i*8+1] << 8) |
-                   ((ULONG)kernelData[i*8+2] << 16) |
-                   ((ULONG)kernelData[i*8+3] << 24) |
-                   ((ULONG)kernelData[i*8+4] << 32) |
-                   ((ULONG)kernelData[i*8+5] << 40) |
-                   ((ULONG)kernelData[i*8+6] << 48) |
-                   ((ULONG)kernelData[i*8+7] << 56);
-    //
     // Pass kernel arguments to internal routines
     //
     This thisStruct;
     This* this=&thisStruct;
-    this->input = input;
+    this->input = (__global ulong *)kernelData;
     this->target = kernelData+40;
-    this->solution = kernelData+72;
+    this->solution = (__global ulong *)(kernelData+72);
     this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
     //
@@ -217,5 +201,4 @@ __kernel void run(__global uchar  *kernelData,
     if (this->done[0]==0) {
         hash(this);
     }
-    return;
 }
