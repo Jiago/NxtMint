@@ -32,7 +32,7 @@ typedef uchar      BOOLEAN;
  */
 typedef struct This_s {
     __global ulong * restrict input;        /* Input data */
-    __global uchar * restrict target;       /* Hash target */
+    __global ulong * restrict target;       /* Hash target */
     __global uint  * restrict done;         /* Solution found indicator */
     __global ulong * restrict solution;     /* Solution nonce */
              int              passId;       /* Pass identifier */
@@ -58,7 +58,8 @@ __constant LONG constants[] = {
  * Perform a single hash
  */
 static void hash(This *this) {
-    ULONG state0 = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);  
+    ULONG nonce = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);  
+    ULONG state0 = nonce;
     ULONG state1 = this->input[1];
     ULONG state2 = this->input[2];  
     ULONG state3 = this->input[3];
@@ -146,36 +147,15 @@ static void hash(This *this) {
     //
     // Check if we met the target
     //
-    BOOLEAN isSolved = TRUE;
-    BOOLEAN keepChecking = TRUE;
-    ULONG check;
-    int j;
-    for (i=3; i>=0 && keepChecking; i--) {
-        if (i == 3)
-            check = state3;
-        else if (i == 2)
-            check = state2;
-        else if (i == 1)
-            check = state1;
-        else
-            check = state0;
-        for (j=7; j>=0 && keepChecking; j--) {
-            int b0 = (int)(check>>(j*8))&0xff;
-            int b1 = (int)(this->target[i*8+j])&0xff;
-            if (b0 < b1) {
-                keepChecking = FALSE;
-            } else if (b0 > b1) {
-                isSolved = FALSE;
-                keepChecking = FALSE;
-            }
-        }
-    }
+    BOOLEAN isSolved = (state3<this->target[3] ? TRUE : state3>this->target[3] ? FALSE :
+                        state2<this->target[2] ? TRUE : state2>this->target[2] ? FALSE :
+                        state1<this->target[1] ? TRUE : state1>this->target[1] ? FALSE :
+                        state0<this->target[0] ? TRUE : state0>this->target[0] ? FALSE : TRUE);
     //
     // Return the nonce if we have a solution
     //
-    if (isSolved!=0 && atomic_cmpxchg(this->done, 0, 1)==0) {
-        this->solution[0] = this->input[0] + (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
-    }
+    if (isSolved!=0 && atomic_cmpxchg(this->done, 0, 1)==0)
+        this->solution[0] = nonce;
 }
 
 /**
@@ -190,7 +170,7 @@ __kernel void run(__global uchar  *kernelData,
     This thisStruct;
     This* this=&thisStruct;
     this->input = (__global ulong *)kernelData;
-    this->target = kernelData+40;
+    this->target = (__global ulong *)(kernelData+40);
     this->solution = (__global ulong *)(kernelData+72);
     this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
