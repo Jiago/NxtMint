@@ -1,6 +1,12 @@
 NxtMint Change Log
 ==================
 
+Version 1.5.0
+  - Set gpuDevice defaults to 0, 256, 0
+  - Check account balance during initialization
+  - Allow gpuIntensity up to 1048576
+  - Improve Keccak25 GPU performance for NVIDIA cards
+  
 Version 1.4.0
   - Use native OpenCL programs (Aparapi is no longer used)
   
