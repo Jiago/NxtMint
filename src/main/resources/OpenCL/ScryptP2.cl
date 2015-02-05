@@ -59,10 +59,9 @@ typedef struct {
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar * restrict input;            /* Input data */
-    __global uchar * restrict target;           /* Hash target */
-    __global uint  * restrict done;             /* Solution found indicator */
-    __global uchar * restrict solution;         /* Solution nonce */
+    __global uchar * restrict input;            /* Input data (Phase 1 and Phase 3) */
+    __global ulong * restrict target;           /* Hash target (Phase 3) */
+    __global ulong * restrict solution;         /* Solution nonce (Phase 3) */
              int              passId;           /* Pass identifier */
     __global uint  *          V;                /* Pad cache (Phase 2) */
 } This;
@@ -167,10 +166,6 @@ __kernel void run(__global uchar * kernelData,
     //
     This thisStruct;
     This* this = &thisStruct;
-    this->input = kernelData+0;
-    this->target = kernelData+40;
-    this->solution = kernelData+72;
-    this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
     this->V = V;
     //
@@ -188,9 +183,7 @@ __kernel void run(__global uchar * kernelData,
     //
     // Hash the input data if we haven't found a solution yet
     //
-    if (this->done[0] == 0) {
-        hash(this, &state);
-        vstore16(X0, 0, (__global uint *)(stateData+3*304));
-        vstore16(X1, 0, (__global uint *)(stateData+3*304+64));
-    }    
+    hash(this, &state);
+    vstore16(X0, 0, (__global uint *)(stateData+3*304));
+    vstore16(X1, 0, (__global uint *)(stateData+3*304+64));
 }

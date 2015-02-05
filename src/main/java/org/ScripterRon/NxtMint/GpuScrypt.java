@@ -30,28 +30,27 @@ import java.util.Arrays;
  * SCRYPT hash algorithm for Monetary System currencies
  */
 public class GpuScrypt extends GpuFunction {
-    
+
     /** Pass identifier */
     private final int[] passId = new int[1];
-    
+
     /** Kernel global size */
     private final long[] kernelGlobalSize = new long[1];
-    
+
     /** Kernel local size */
     private final long[] kernelLocalSize = new long[1];
-    
+
     /** Kernel data offset */
     private final int inputOffset = 0;
     private final int targetOffset = 40;
     private final int solutionOffset = 72;
-    private final int doneOffset = 80; 
-    
+
     /** Kernel data buffer */
-    private final byte[] kernelData = new byte[40+32+8+4];    
+    private final byte[] kernelData = new byte[40+32+8];
 
     /**
      * Create the GPU hash function
-     * 
+     *
      * @param       gpuDevice       GPU device
      * @throws      CLException     OpenCL error occurred
      * @throws      IOException     Unable to read OpenCL program source
@@ -90,7 +89,7 @@ public class GpuScrypt extends GpuFunction {
         passes = count/globalSize;
         kernelGlobalSize[0] = globalSize;
         kernelLocalSize[0] = localSize;
-        log.debug(String.format("GPU %d: Local size %d, Global size %d, Passes %d", 
+        log.debug(String.format("GPU %d: Local size %d, Global size %d, Passes %d",
                                 gpuDevice.getGpuId(), localSize, globalSize, passes));
         //
         // Allocate the memory objects for the kernel data
@@ -126,17 +125,17 @@ public class GpuScrypt extends GpuFunction {
 
     /**
      * Set the input data and the hash target
-     * 
+     *
      * The input data is in the following format:
      *     Bytes 0-7:   Initial nonce (modified for each kernel instance)
      *     Bytes 8-15:  Currency identifier
      *     Bytes 16-23: Currency units
      *     Bytes 24-31: Minting counter
      *     Bytes 32-39: Account identifier
-     * 
+     *
      * The hash target and hash digest are treated as unsigned 32-byte numbers in little-endian format.
      * The digest must be less than the target in order to be a solution.
-     * 
+     *
      * @param       inputBytes      Bytes to be hashed (40 bytes)
      * @param       targetBytes     Hash target (32 bytes)
      */
@@ -157,12 +156,12 @@ public class GpuScrypt extends GpuFunction {
         //
         // Indicate no solution has been found
         //
-        Arrays.fill(kernelData, doneOffset, doneOffset+4, (byte)0);        
+        Arrays.fill(kernelData, solutionOffset, solutionOffset+8, (byte)0);
     }
-    
+
     /**
      * Execute the kernel
-     * 
+     *
      * @return                      TRUE if the kernel was executed
      */
     @Override
@@ -177,7 +176,7 @@ public class GpuScrypt extends GpuFunction {
                                     0, null, null);
             //
             // Execute the kernel, updating the passId for each pass.  The kernels
-            // will be executed sequentially, so the value chosen for global size 
+            // will be executed sequentially, so the value chosen for global size
             // should be large enough to keep the GPU compute units busy.  All work
             // items in the same work group will share local memory, which implies
             // that they will all be executed by the same compute unit.
@@ -187,24 +186,18 @@ public class GpuScrypt extends GpuFunction {
                 CL.clSetKernelArg(kernels[0], 2, Sizeof.cl_int, Pointer.to(passId));
                 CL.clSetKernelArg(kernels[1], 3, Sizeof.cl_int, Pointer.to(passId));
                 CL.clSetKernelArg(kernels[2], 2, Sizeof.cl_int, Pointer.to(passId));
-                CL.clEnqueueNDRangeKernel(commandQueue, kernels[0], 1, null, 
-                                          kernelGlobalSize, kernelLocalSize, 
+                CL.clEnqueueNDRangeKernel(commandQueue, kernels[0], 1, null,
+                                          kernelGlobalSize, kernelLocalSize,
                                           0, null, null);
-                CL.clEnqueueNDRangeKernel(commandQueue, kernels[1], 1, null, 
-                                          kernelGlobalSize, kernelLocalSize, 
+                CL.clEnqueueNDRangeKernel(commandQueue, kernels[1], 1, null,
+                                          kernelGlobalSize, kernelLocalSize,
                                           0, null, null);
-                CL.clEnqueueNDRangeKernel(commandQueue, kernels[2], 1, null, 
-                                          kernelGlobalSize, kernelLocalSize, 
+                CL.clEnqueueNDRangeKernel(commandQueue, kernels[2], 1, null,
+                                          kernelGlobalSize, kernelLocalSize,
                                           0, null, null);
                 CL.clEnqueueReadBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
                                        Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
                                        0, null, null);
-                meetsTarget = (kernelData[doneOffset]!=0   || kernelData[doneOffset+1]!=0 ||
-                               kernelData[doneOffset+2]!=0 || kernelData[doneOffset+3]!=0);
-                if (meetsTarget)
-                    break;
-            }
-            if (meetsTarget)
                 nonce = ((long)kernelData[solutionOffset]&255) |
                         (((long)kernelData[solutionOffset+1]&255) << 8) |
                         (((long)kernelData[solutionOffset+2]&255) << 16) |
@@ -213,13 +206,17 @@ public class GpuScrypt extends GpuFunction {
                         (((long)kernelData[solutionOffset+5]&255) << 40) |
                         (((long)kernelData[solutionOffset+6]&255) << 48) |
                         (((long)kernelData[solutionOffset+7]&255) << 56);
+                meetsTarget = (nonce!=0);
+                if (meetsTarget)
+                    break;
+            }
             executed = true;
         } catch (CLException exc) {
             log.error("Unable to execute OpenCL kernel", exc);
         }
         return executed;
     }
-    
+
     /**
      * Release OpenCL resources when we are finished using the GPU
      */
@@ -232,7 +229,7 @@ public class GpuScrypt extends GpuFunction {
             for (cl_kernel kernel : kernels)
                 CL.clReleaseKernel(kernel);
             CL.clReleaseCommandQueue(commandQueue);
-            CL.clReleaseContext(context);        
+            CL.clReleaseContext(context);
         }
-    }    
+    }
 }

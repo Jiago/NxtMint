@@ -33,7 +33,6 @@ typedef uchar      BOOLEAN;
 typedef struct This_s {
     __global ulong * restrict input;        /* Input data */
     __global ulong * restrict target;       /* Hash target */
-    __global uint  * restrict done;         /* Solution found indicator */
     __global ulong * restrict solution;     /* Solution nonce */
              int              passId;       /* Pass identifier */
 } This;
@@ -52,7 +51,11 @@ __constant LONG constants[] = {
 };
 
 /** Helper functions */
+#ifdef USE_ROTATE
 #define rotateLeft(x, c) rotate((x), (ulong)(c))
+#else
+#define rotateLeft(x, c) (((x)<<c) | ((x)>>(64-c)))
+#endif
 
 /**
  * Perform a single hash
@@ -154,8 +157,8 @@ static void hash(This *this) {
     //
     // Return the nonce if we have a solution
     //
-    if (isSolved!=0 && atomic_cmpxchg(this->done, 0, 1)==0)
-        this->solution[0] = nonce;
+    if (isSolved) 
+        *this->solution = nonce;
 }
 
 /**
@@ -163,7 +166,6 @@ static void hash(This *this) {
  */
 __kernel void run(__global uchar  *kernelData, 
                            int    passId) {
-    int i, offset;
     //
     // Pass kernel arguments to internal routines
     //
@@ -172,12 +174,9 @@ __kernel void run(__global uchar  *kernelData,
     this->input = (__global ulong *)kernelData;
     this->target = (__global ulong *)(kernelData+40);
     this->solution = (__global ulong *)(kernelData+72);
-    this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
     //
-    // Hash the input data if we haven't found a solution yet
+    // Hash the input data
     //
-    if (this->done[0]==0) {
-        hash(this);
-    }
+    hash(this);
 }

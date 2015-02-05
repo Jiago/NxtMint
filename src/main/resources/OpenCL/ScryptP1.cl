@@ -59,10 +59,9 @@ typedef struct {
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar * restrict input;            /* Input data */
-    __global uchar * restrict target;           /* Hash target */
-    __global uint  * restrict done;             /* Solution found indicator */
-    __global uchar * restrict solution;         /* Solution nonce */
+    __global uchar * restrict input;            /* Input data (Phase 1 and Phase 3*/
+    __global ulong * restrict target;           /* Hash target (Phase 3) */
+    __global ulong * restrict solution;         /* Solution nonce (Phase 3) */
              int              passId;           /* Pass identifier */
     __global uint  *          V;                /* Pad cache (Phase 2) */
 } This;
@@ -119,15 +118,8 @@ static void hash(This *this, State *state) {
     //
     // The nonce is stored in the first 8 bytes of the input data
     //
-    ULONG nonce = (ULONG)this->input[0] |
-                  ((ULONG)this->input[1] << 8) |
-                  ((ULONG)this->input[2] << 16) |
-                  ((ULONG)this->input[3] << 24) |
-                  ((ULONG)this->input[4] << 32) |
-                  ((ULONG)this->input[5] << 40) |
-                  ((ULONG)this->input[6] << 48) |
-                  ((ULONG)this->input[7] << 56);
-    nonce += (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
+    ULONG nonce = ((__global ulong *)this->input)[0] +
+                        (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
     state->B[0] = (BYTE)nonce;
     state->B[1] = (BYTE)(nonce >> 8);
     state->B[2] = (BYTE)(nonce >> 16);
@@ -146,23 +138,26 @@ static void hash(This *this, State *state) {
     // Initialize state in X0 and X1
     //
     initMac(state);
-    for (i=0; i<4; i++) {
+    for (i=0; i<2; i++) {
         state->B[43] = (BYTE)(i + 1);
         updateDigest(state->B, 0, 44, state->digest);
         finishMac(H, state);
-        for (j=0; j<8; j++) {
-            if (i < 2)
-                pX0[i*8+j] = ((UINT)H[j*4+0]) | 
-                             ((UINT)H[j*4+1] << 8) | 
-                             ((UINT)H[j*4+2] << 16) | 
-                             ((UINT)H[j*4+3] << 24);
-            else
-                pX1[(i-2)*8+j] = ((UINT)H[j*4+0]) | 
-                             ((UINT)H[j*4+1] << 8) | 
-                             ((UINT)H[j*4+2] << 16) | 
-                             ((UINT)H[j*4+3] << 24);
-        }
+        for (j=0; j<8; j++)
+            pX0[i*8+j] = ((UINT)H[j*4+0]) | 
+                         ((UINT)H[j*4+1] << 8) | 
+                         ((UINT)H[j*4+2] << 16) | 
+                         ((UINT)H[j*4+3] << 24);
     }
+    for (i=2; i<4; i++) {
+        state->B[43] = (BYTE)(i + 1);
+        updateDigest(state->B, 0, 44, state->digest);
+        finishMac(H, state);
+        for (j=0; j<8; j++)
+            pX1[(i-2)*8+j] = ((UINT)H[j*4+0]) | 
+                             ((UINT)H[j*4+1] << 8) | 
+                             ((UINT)H[j*4+2] << 16) | 
+                             ((UINT)H[j*4+3] << 24);
+    }    
 }
 
 /**
@@ -465,9 +460,6 @@ __kernel void run(__global uchar  *kernelData,
     This thisStruct;
     This* this = &thisStruct;
     this->input = kernelData+0;
-    this->target = kernelData+40;
-    this->solution = kernelData+72;
-    this->done = (__global uint *)(kernelData+80);
     this->passId = passId;
     //
     // Build the SCRYPT state
@@ -489,9 +481,7 @@ __kernel void run(__global uchar  *kernelData,
     //
     // Hash the input data if we haven't found a solution yet
     //
-    if (this->done[0] == 0) {
-        hash(this, &state);
-        vstore16(X0, 0, (__global uint *)(stateData+3*304));
-        vstore16(X1, 0, (__global uint *)(stateData+3*304+64));
-    }
+    hash(this, &state);
+    vstore16(X0, 0, (__global uint *)(stateData+3*304));
+    vstore16(X1, 0, (__global uint *)(stateData+3*304+64));
 }

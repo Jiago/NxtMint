@@ -41,7 +41,6 @@ __constant uint k[] = {
 typedef struct This_s {
     __global uchar  *input;             /* Input data */
     __global uchar  *target;            /* Hash target */
-    __global uint   *done;              /* Solution found indicator */
     __global uchar  *solution;          /* Solution nonce */
              int    passId;             /* Pass identifier */
 } This;
@@ -158,14 +157,13 @@ static void hash(This *this) {
          }
       }
     }
-    if (isSolved!=0 && atomic_cmpxchg(this->done, 0, 1)==0) {
+    if (isSolved!=0) {
       //
       // Save the nonce in little-endian format
       //
       for (i=0; i<8; i++)
         this->solution[i] = (uchar)(n>>(56-(i*8)));
    }
-   return;
 }
 
 /**
@@ -181,14 +179,10 @@ __kernel void run(__global uchar  *kernelData,
     this->input = kernelData+0;
     this->target = kernelData+64;
     this->solution = kernelData+96;
-    this->done = (__global uint *)(kernelData+104);
     this->passId = passId;
     //
     // Hash the input data if we haven't found a solution yet
     //
-    if (this->done[0]==0) {
-      hash(this);
-    }
-    return;
+    hash(this);
 }
 

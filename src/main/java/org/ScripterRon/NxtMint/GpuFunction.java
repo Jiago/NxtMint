@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 import org.jocl.CL;
 import org.jocl.CLException;
@@ -86,6 +87,17 @@ public abstract class GpuFunction {
     protected GpuFunction(GpuDevice gpuDevice, String... pgmNames) throws CLException, IOException {
         this.gpuDevice = gpuDevice;
         //
+        // Get compiler options based on the platform name
+        //
+        String compilerOptions = "";
+        String platformName = OpenCL.getString(gpuDevice.getPlatform(), CL.CL_PLATFORM_NAME);
+        if (platformName.contains("NVIDIA")) {
+            compilerOptions = compilerOptions+"-DUSE_ROTATE";
+            log.debug(String.format("GPU %d: Using rotate() built-in function", gpuDevice.getGpuId()));
+        } else {
+            log.debug(String.format("GPU %d: Using shift operations for rotate", gpuDevice.getGpuId()));
+        }
+        //
         // Create the OpenCL context and associated command queue
         //
         cl_context_properties contextProperties = new cl_context_properties();
@@ -118,7 +130,7 @@ public abstract class GpuFunction {
             // Compile and build the CL program
             //
             cl_program program = CL.clCreateProgramWithSource(context, 1, new String[]{pgmSource}, null, null);
-            CL.clBuildProgram(program, 0, null, null, null, null);
+            CL.clBuildProgram(program, 0, null, compilerOptions, null, null);
             //
             // Create the kernel
             //

@@ -44,10 +44,9 @@ public class GpuKnv25 extends GpuFunction {
     private final int inputOffset = 0;
     private final int targetOffset = 40;
     private final int solutionOffset = 72;
-    private final int doneOffset = 80; 
     
     /** Kernel data buffer */
-    private final byte[] kernelData = new byte[40+32+8+4];
+    private final byte[] kernelData = new byte[40+32+8];
 
     /**
      * Create the GPU hash function
@@ -127,7 +126,7 @@ public class GpuKnv25 extends GpuFunction {
         //
         // Indicate no solution has been found
         //
-        Arrays.fill(kernelData, doneOffset, doneOffset+4, (byte)0);
+        Arrays.fill(kernelData, solutionOffset, solutionOffset+8, (byte)0);
     }
     
     /**
@@ -161,11 +160,6 @@ public class GpuKnv25 extends GpuFunction {
                 CL.clEnqueueReadBuffer(commandQueue, memObjects[0], CL.CL_TRUE, 0,
                                        Sizeof.cl_uchar*kernelData.length, Pointer.to(kernelData),
                                        0, null, null);
-                meetsTarget = (kernelData[doneOffset]!=0);
-                if (meetsTarget)
-                    break;
-            }
-            if (meetsTarget)
                 nonce = ((long)kernelData[solutionOffset]&255) |
                         (((long)kernelData[solutionOffset+1]&255) << 8) |
                         (((long)kernelData[solutionOffset+2]&255) << 16) |
@@ -174,6 +168,10 @@ public class GpuKnv25 extends GpuFunction {
                         (((long)kernelData[solutionOffset+5]&255) << 40) |
                         (((long)kernelData[solutionOffset+6]&255) << 48) |
                         (((long)kernelData[solutionOffset+7]&255) << 56);
+                meetsTarget = (nonce!=0);
+                if (meetsTarget)
+                    break;
+            }
             executed = true;
         } catch (CLException exc) {
             log.error("Unable to execute OpenCL kernel", exc);

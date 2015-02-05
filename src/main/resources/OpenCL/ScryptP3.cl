@@ -59,10 +59,9 @@ typedef struct {
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar * restrict input;            /* Input data */
-    __global uchar * restrict target;           /* Hash target */
-    __global uint  * restrict done;             /* Solution found indicator */
-    __global uchar * restrict solution;         /* Solution nonce */
+    __global uchar * restrict input;            /* Input data (Phase 1 and Phase 3) */
+    __global ulong * restrict target;           /* Hash target (Phase 3) */
+    __global ulong * restrict solution;         /* Solution nonce (Phase 3) */
              int              passId;           /* Pass identifier */
     __global uint  *          V;                /* Pad cache (Phase 2) */
 } This;
@@ -137,34 +136,26 @@ static void hash(This *this, State *state) {
     // See if we have a solution.  Note that the digest and the target
     // are treated as 32-byte unsigned numbers in little-endian format.
     //
-    BOOLEAN keepChecking = TRUE;
-    BOOLEAN isSolved = TRUE;
-    for (i=31; i>=0 && keepChecking==TRUE; i--) {
-        int b0 = (int)H[i]&255;
-        int b1 = (int)this->target[i]&255;
-        if (b0 < b1) {
-            keepChecking = FALSE;
-        } else if (b0 > b1) {
-            keepChecking = FALSE;
-            isSolved = FALSE;
-        }
-    }
+    ULONG check[4];
+    check[0] =  (ULONG)H[0]       | ((ULONG)H[1]<<8)   | ((ULONG)H[2]<<16)  | ((ULONG)H[3]<<24) |
+               ((ULONG)H[4]<<32)  | ((ULONG)H[5]<<40)  | ((ULONG)H[6]<<48)  | ((ULONG)H[7]<<56);
+    check[1] =  (ULONG)H[8]       | ((ULONG)H[9]<<8)   | ((ULONG)H[10]<<16) | ((ULONG)H[11]<<24) |
+               ((ULONG)H[12]<<32) | ((ULONG)H[13]<<40) | ((ULONG)H[14]<<48) | ((ULONG)H[15]<<56);
+    check[2] =  (ULONG)H[16]      | ((ULONG)H[17]<<8)  | ((ULONG)H[18]<<16) | ((ULONG)H[19]<<24) |
+               ((ULONG)H[20]<<32) | ((ULONG)H[21]<<40) | ((ULONG)H[22]<<48) | ((ULONG)H[23]<<56);
+    check[3] =  (ULONG)H[24]      | ((ULONG)H[25]<<8)  | ((ULONG)H[26]<<16) | ((ULONG)H[27]<<24) |
+               ((ULONG)H[28]<<32) | ((ULONG)H[29]<<40) | ((ULONG)H[30]<<48) | ((ULONG)H[31]<<56);
+    BOOLEAN isSolved = (check[3]<this->target[3] ? TRUE : check[3]>this->target[3] ? FALSE :
+                        check[2]<this->target[2] ? TRUE : check[2]>this->target[2] ? FALSE :
+                        check[1]<this->target[1] ? TRUE : check[1]>this->target[1] ? FALSE :
+                        check[0]<this->target[0] ? TRUE : check[0]>this->target[0] ? FALSE : TRUE);
     //
     // Return the nonce if we have a solution
     //
-    if (isSolved==TRUE && atomic_cmpxchg(this->done, 0, 1)==0) {
-        ULONG nonce = (ULONG)this->input[0] |
-                  ((ULONG)this->input[1] << 8) |
-                  ((ULONG)this->input[2] << 16) |
-                  ((ULONG)this->input[3] << 24) |
-                  ((ULONG)this->input[4] << 32) |
-                  ((ULONG)this->input[5] << 40) |
-                  ((ULONG)this->input[6] << 48) |
-                  ((ULONG)this->input[7] << 56);
-        nonce += (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
-        for (i=0; i<8; i++)
-            this->solution[i] = (BYTE)(nonce >> (8*i));
-    }
+    if (isSolved==TRUE)
+        this->solution[0] = ((__global ulong *)this->input)[0] + 
+                                (ULONG)get_global_id(0) + 
+                                ((ULONG)this->passId<<32);
 }
 
 /**
@@ -431,9 +422,8 @@ __kernel void run(__global uchar * kernelData,
     This thisStruct;
     This* this = &thisStruct;
     this->input = kernelData+0;
-    this->target = kernelData+40;
-    this->solution = kernelData+72;
-    this->done = (__global uint *)(kernelData+80);
+    this->target = (__global ulong *)(kernelData+40);
+    this->solution = (__global ulong *)(kernelData+72);
     this->passId = passId;
     //
     // Build the SCRYPT state
@@ -455,7 +445,5 @@ __kernel void run(__global uchar * kernelData,
     //
     // Hash the input data if we haven't found a solution yet
     //
-    if (this->done[0] == 0) {
-        hash(this, &state);
-    }
+    hash(this, &state);
 }
