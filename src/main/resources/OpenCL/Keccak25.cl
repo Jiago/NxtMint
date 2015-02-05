@@ -77,9 +77,13 @@ static void hash(This *this) {
         ULONG t4 = state4 ^ state9 ^ state14 ^ state19 ^ state24;
         
         ULONG u0 = t0 ^ rotateLeft(t2, 1);
+        ULONG w0 = rotateLeft(state6 ^ u0, 44);
         ULONG u1 = t1 ^ rotateLeft(t3, 1);
+        ULONG w1 = rotateLeft(state7 ^ u1, 6);
         ULONG u2 = t2 ^ rotateLeft(t4, 1);
+        ULONG w2 = rotateLeft(state8 ^ u2, 55);
         ULONG u3 = t3 ^ rotateLeft(t0, 1);
+        ULONG w3 = rotateLeft(state9 ^ u3, 20);
         ULONG u4 = t4 ^ rotateLeft(t1, 1);
         
         t0 = state0 ^ u4;
@@ -87,11 +91,6 @@ static void hash(This *this) {
         t2 = rotateLeft(state2 ^ u1, 62);
         t3 = rotateLeft(state3 ^ u2, 28);
         t4 = rotateLeft(state4 ^ u3, 27);
-        
-        ULONG w0 = rotateLeft(state6 ^ u0, 44);
-        ULONG w1 = rotateLeft(state7 ^ u1, 6);
-        ULONG w2 = rotateLeft(state8 ^ u2, 55);
-        ULONG w3 = rotateLeft(state9 ^ u3, 20);
         
         state2 = rotateLeft(state12 ^ u1, 43);
         state0 = t0 ^ (~w0 & state2) ^ (ULONG)constants[i];
