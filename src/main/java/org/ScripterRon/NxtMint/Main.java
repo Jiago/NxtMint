@@ -501,6 +501,7 @@ public class Main {
             for (cl_device_id device : devices) {
                 long deviceType = OpenCL.getLong(device, CL.CL_DEVICE_TYPE);
                 if ((deviceType&CL.CL_DEVICE_TYPE_GPU)!=0 && OpenCL.getBoolean(device, CL.CL_DEVICE_AVAILABLE)) {
+                    String platformName = OpenCL.getString(platform, CL.CL_PLATFORM_NAME);
                     String deviceName = OpenCL.getString(device, CL.CL_DEVICE_NAME);
                     String driverVersion = OpenCL.getString(device, CL.CL_DRIVER_VERSION);
                     int computeUnits = OpenCL.getInt(device, CL.CL_DEVICE_MAX_COMPUTE_UNITS);
@@ -509,9 +510,9 @@ public class Main {
                     int maxWorkGroupSize = (int)OpenCL.getSize(device, CL.CL_DEVICE_MAX_WORK_GROUP_SIZE);
                     int gpuId = gpuDeviceList.size();
                     log.info(String.format(
-                            "GPU device %d: %s, Driver %s\n" +
+                            "GPU device %d: %s, %s, Driver %s\n" +
                             "  %dMB global memory, %dKB local memory, %d compute units, Max work group size %d",
-                            gpuId, deviceName, driverVersion, globalMemorySize/(1024*1024),
+                            gpuId, platformName, deviceName, driverVersion, globalMemorySize/(1024*1024),
                             localMemorySize/1024, computeUnits, maxWorkGroupSize));
                     gpuDeviceList.add(new GpuDevice(gpuId, platform, device, computeUnits,
                                                     globalMemorySize, localMemorySize, maxWorkGroupSize));
