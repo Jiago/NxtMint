@@ -40,7 +40,7 @@ __constant uint k[] = {
  */
 typedef struct This_s {
     __global uchar  *input;             /* Input data */
-    __global uchar  *target;            /* Hash target */
+    __global uint   *target;            /* Hash target */
     __global uchar  *solution;          /* Solution nonce */
              int    passId;             /* Pass identifier */
 } This;
@@ -48,7 +48,11 @@ typedef struct This_s {
 /**
  * Rotate an integer left the requested number of bits
  */
-#define rotateLeft(v, c) ((v<<c) | (v>>(32-c)))
+#ifdef USE_ROTATE
+#define rotateLeft(v, c) rotate(v, (uint)c)
+#else
+#define rotateLeft(v, c) (((v)<<c) | ((v)>>(32-c)))
+#endif
 
 /**
  * Do the hash
@@ -65,32 +69,34 @@ static void hash(This *this) {
     uint w0=0, w1=0, w2=0, w3=0, w4=0, w5=0, w6=0, w7=0;
     uint w8=0, w9=0, w10=0, w11=0, w12=0, w13=0, w14=0, w15=0, w16=0;
     uint T, T2;
-    ulong n;
     //
-    // Transform the data
+    // Transform the data (the SHA-256 algorithm is big-endian, so we reverse the bytes)
     //
     // We will modify the nonce (first 8 bytes of the input data) for each execution instance
-    // based on the global ID
+    // based on the global ID and the pass ID
     //
     int offset = 0;
     int r;
-    for (r=0; r<64; r++) {
-        if (r < 16){
-            w16 = ((uint)this->input[offset] << 24) | 
-                  ((uint)this->input[offset+1] << 16) | 
-                  ((uint)this->input[offset+2] << 8) | 
-                  ((uint)this->input[offset+3]);
-            offset += 4;
-            if (r == 0) {
-                n = (ulong)w16 << 32;
-            } else if (r == 1) {
-                w16 += (ulong)get_global_id(0) + ((ulong)this->passId<<32);
-                n |= (ulong)w16;
-            }
-        } else {
-            w16 = ((rotateLeft(w14, 15) ^ rotateLeft(w14, 13) ^ (w14 >> 10)) + w9 + 
+    uint input[16];
+    for (r=0; r<16; r++, offset+=4)
+        input[r] = ((uint)this->input[offset] << 24) |  ((uint)this->input[offset+1] << 16) | 
+                   ((uint)this->input[offset+2] << 8) | ((uint)this->input[offset+3]);
+    input[0] += this->passId;
+    input[1] += this->get_global_id(0);
+    for (r=0; r<16; r++) {
+        w16 = input[r];
+        T = (H + (rotateLeft(E, 26) ^ rotateLeft(E, 21) ^ rotateLeft(E, 7)) +
+                        ((E & F) ^ (~E & G)) + k[r] + w16);
+        T2 = ((rotateLeft(A, 30) ^ rotateLeft(A, 19) ^ rotateLeft(A, 10)) + 
+                        ((A & B) ^ (A & C) ^ (B & C)));
+        w0 = w1; w1 = w2; w2 = w3; w3 = w4; w4 = w5; w5 = w6; w6 = w7; w7 = w8; w8 = w9;
+        w9 = w10; w10 = w11; w11 = w12; w12 = w13; w13 = w14; w14 = w15; w15 = w16;
+        H = G; G = F; F = E; E = D + T;
+        D = C; C = B; B = A; A = T + T2;
+    }    
+    for (r=16; r<64; r++) {
+        w16 = ((rotateLeft(w14, 15) ^ rotateLeft(w14, 13) ^ (w14 >> 10)) + w9 + 
                     (rotateLeft(w1, 25) ^ rotateLeft(w1, 14) ^ (w1 >> 3)) + w0);
-        }
         T = (H + (rotateLeft(E, 26) ^ rotateLeft(E, 21) ^ rotateLeft(E, 7)) +
                         ((E & F) ^ (~E & G)) + k[r] + w16);
         T2 = ((rotateLeft(A, 30) ^ rotateLeft(A, 19) ^ rotateLeft(A, 10)) + 
@@ -120,49 +126,27 @@ static void hash(This *this) {
     uint check;
     int i;
     for (i=7; i>=0 && keepChecking!=0; i--) {
-      switch (i) {
-         case 0:
-            check = A;
-            break;
-         case 1:
-            check = B;
-            break;
-         case 2:
-            check = C;
-            break;
-         case 3:
-            check = D;
-            break;
-         case 4:
-            check = E;
-            break;
-         case 5:
-            check = F;
-            break;
-         case 6:
-            check = G;
-            break;
-         case 7:
-            check = H;
-            break;
-      }
-      for (int j=0; j<4 && keepChecking!=0; j++){
-         int b0 = (check>>(j*8)) & 255;
-         int b1 = this->target[((i*4) + (3-j))] & 255;
-         if (b0 < b1){
+        check = (i==0 ? A : i==1 ? B : i==2 ? C : i==3 ? D :
+                 i==4 ? E : i==5 ? F : i==6 ? G : H);
+        if (check < this->target[i]) {
             keepChecking = 0;
-         } else if (b0 > b1) {
+        } else if (check > this->target[i]) {
             isSolved = 0;
             keepChecking = 0;
-         }
-      }
+        }
     }
     if (isSolved!=0) {
       //
-      // Save the nonce in little-endian format
+      // Save the nonce (the SHA-256 algorithm is big-endian, so we reverse the bytes)
       //
-      for (i=0; i<8; i++)
-        this->solution[i] = (uchar)(n>>(56-(i*8)));
+      this->solution[0] = (uchar)(input[0]>>24);
+      this->solution[1] = (uchar)(input[0]>>16);
+      this->solution[2] = (uchar)(input[0]>>8);
+      this->solution[3] = (uchar)input[0];
+      this->solution[4] = (uchar)(input[1]>>24);
+      this->solution[5] = (uchar)(input[1]>>16);
+      this->solution[6] = (uchar)(input[1]>>8);
+      this->solution[7] = (uchar)input[1];
    }
 }
 
@@ -177,7 +161,7 @@ __kernel void run(__global uchar  *kernelData,
     This thisStruct;
     This* this=&thisStruct;
     this->input = kernelData+0;
-    this->target = kernelData+64;
+    this->target = (__global uint *)(kernelData+64);
     this->solution = kernelData+96;
     this->passId = passId;
     //
