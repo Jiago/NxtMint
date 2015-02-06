@@ -82,7 +82,7 @@ static void hash(This *this) {
         input[r] = ((uint)this->input[offset] << 24) |  ((uint)this->input[offset+1] << 16) | 
                    ((uint)this->input[offset+2] << 8) | ((uint)this->input[offset+3]);
     input[0] += this->passId;
-    input[1] += this->get_global_id(0);
+    input[1] += get_global_id(0);
     for (r=0; r<16; r++) {
         w16 = input[r];
         T = (H + (rotateLeft(E, 26) ^ rotateLeft(E, 21) ^ rotateLeft(E, 7)) +
