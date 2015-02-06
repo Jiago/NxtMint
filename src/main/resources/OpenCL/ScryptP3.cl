@@ -37,9 +37,7 @@ typedef uchar    BOOLEAN;
 typedef struct {
     UINT    DH[8];
     UINT    DX[64];
-    BYTE    xBuff[4];
     INT     xOff;
-    INT     xBuffOff;
     INT     xByteCount;
 } Digest;
 
@@ -87,18 +85,20 @@ static void hash(This *this, State *state);
 static void finishMac(BYTE *out, State *state);
 
 /** SHA-256 functions */
-static void updateDigestByte(BYTE in, __global Digest *digest);
 static void updateDigest(BYTE *buffer, int inOff, int inLen, __global Digest *digest);
 static void finishDigest(BYTE *out, __global Digest *digest);
 static void resetDigest(__global Digest *digest);
 
 /** SHA-256 helper functions */
 static void processBlock(__global Digest *digest);
-static void processWord(BYTE *buffer, int inOff, __global Digest *digest);
 static void copyDigest(__global Digest *tgtDigest, __global Digest *srcDigest);
 
 /** SHA-256 manipulation functions */
+#ifdef USE_ROTATE
+#define rotateLeft(x, c) rotate(x, (UINT)(c))
+#else
 #define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
+#endif
 #define Ch(x, y, z) (((x) & (y)) ^ ((~(x)) & (z)))
 #define Maj(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
 #define Sum0(x) (rotateLeft(x, 30) ^ rotateLeft(x, 19) ^ rotateLeft(x, 10))
@@ -116,16 +116,20 @@ static void hash(This *this, State *state) {
     // Finish up
     //
     uint xv;
-    for (i=0; i<32; i++) {
-        if (i<16)
-            xv = pX0[i];
-        else
-            xv = pX1[i-16];
+    for (i=0; i<16; i++) {
+        xv = pX0[i];
         state->B[i*4+0] = (BYTE)(xv);
         state->B[i*4+1] = (BYTE)(xv >> 8);
         state->B[i*4+2] = (BYTE)(xv >> 16);
         state->B[i*4+3] = (BYTE)(xv >> 24);
     }
+    for (i=16; i<32; i++) {
+        xv = pX1[i-16];
+        state->B[i*4+0] = (BYTE)(xv);
+        state->B[i*4+1] = (BYTE)(xv >> 8);
+        state->B[i*4+2] = (BYTE)(xv >> 16);
+        state->B[i*4+3] = (BYTE)(xv >> 24);
+    }    
     state->B[128] = 0;
     state->B[129] = 0;
     state->B[130] = 0;
@@ -154,8 +158,7 @@ static void hash(This *this, State *state) {
     //
     if (isSolved==TRUE)
         this->solution[0] = ((__global ulong *)this->input)[0] + 
-                                (ULONG)get_global_id(0) + 
-                                ((ULONG)this->passId<<32);
+                                (ULONG)get_global_id(0) + ((ULONG)this->passId<<32);
 }
 
 /**
@@ -201,7 +204,6 @@ static void resetDigest(__global Digest *digest) {
     for (int i=0; i<64; i++)
         digest->DX[i] = 0;
     digest->xOff = 0;
-    digest->xBuffOff = 0;
     digest->xByteCount = 0;
 }
 
@@ -217,31 +219,8 @@ static void copyDigest(__global Digest *tgtDigest, __global Digest *srcDigest) {
         tgtDigest->DH[i] = srcDigest->DH[i];
     for (i=0; i<64; i++)
         tgtDigest->DX[i] = srcDigest->DX[i];
-    for (i=0; i<4; i++)
-        tgtDigest->xBuff[i] = srcDigest->xBuff[i];
     tgtDigest->xOff = srcDigest->xOff;
-    tgtDigest->xBuffOff = srcDigest->xBuffOff;
     tgtDigest->xByteCount = srcDigest->xByteCount;
-}
-
-/**
- * Update the digest
- * 
- * @param       in              Data
- * @param       digest          SHA-256 digest
- */
-static void updateDigestByte(BYTE in, __global Digest *digest) {
-    digest->xBuff[digest->xBuffOff++] = in;
-    if (digest->xBuffOff == 4) {
-        digest->DX[digest->xOff++] = ((UINT)digest->xBuff[0] << 24) |
-                                     ((UINT)digest->xBuff[1] << 16) |
-                                     ((UINT)digest->xBuff[2] << 8) |
-                                      (UINT)digest->xBuff[3];
-        if (digest->xOff == 16)
-            processBlock(digest);
-        digest->xBuffOff = 0;
-    }
-    digest->xByteCount++;
 }
 
 /**
@@ -249,34 +228,25 @@ static void updateDigestByte(BYTE in, __global Digest *digest) {
  * 
  * @param       buffer          Data buffer
  * @param       inOff           Buffer offset to start of data
- * @param       inLen           Data length
+ * @param       inLen           Data length (must be a multiple of 4)
  * @param       digest          SHA-256 digest
  */
 static void updateDigest(BYTE *buffer, int inOff, int inLen, __global Digest *digest) {
     INT len = inLen;
     INT offset = inOff;
     //
-    // Fill the current word
-    //
-    while (digest->xBuffOff!=0 && len>0) {
-        updateDigestByte(buffer[offset++], digest);
-        len--;
-    }
-    //
     // Process whole words.
     //
-    while (len>4) {
-        processWord(buffer, offset, digest);
+    while (len>0) {
+        digest->DX[digest->xOff++] = ((UINT)buffer[offset] << 24) |
+                                     ((UINT)buffer[offset+1] << 16) |
+                                     ((UINT)buffer[offset+2] << 8) |
+                                      (UINT)buffer[offset+3];
+        if (digest->xOff == 16)
+            processBlock(digest);    
         offset += 4;
         len -= 4;
         digest->xByteCount += 4;
-    }
-    //
-    // Load in the remainder.
-    //
-    while (len > 0) {
-        updateDigestByte(buffer[offset++], digest);
-        len--;
     }
 }
 
@@ -294,9 +264,7 @@ static void finishDigest(BYTE *out, __global Digest *digest) {
     // The first byte is 0x80 followed by 0x00.  The last two bytes
     // contain the data length in bits
     //
-    updateDigestByte((BYTE)128, digest);
-    while (digest->xBuffOff != 0)
-        updateDigestByte((BYTE)0, digest);
+    digest->DX[digest->xOff++] = 0x80000000U;
     if (digest->xOff > 14)
         processBlock(digest);
     digest->DX[14] = (UINT)(bitLength >> 32);
@@ -318,22 +286,6 @@ static void finishDigest(BYTE *out, __global Digest *digest) {
     // Reset the digest
     //
     resetDigest(digest);
-}
-
-/**
- * Process a word (4 bytes)
- * 
- * @param       buffer          Data buffer
- * @param       inOff           Buffer offset to start of word 
- * @param       digest          SHA-256 digest
- */
-static void processWord(BYTE *buffer, int inOff, __global Digest *digest) {
-    digest->DX[digest->xOff++] = ((UINT)buffer[inOff] << 24) |
-                                 ((UINT)buffer[inOff+1] << 16) |
-                                 ((UINT)buffer[inOff+2] << 8) |
-                                 (UINT)buffer[inOff+3];
-    if (digest->xOff == 16)
-        processBlock(digest);
 }
     
 /**

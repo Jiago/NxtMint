@@ -30,27 +30,11 @@ typedef uchar    BOOLEAN;
 
 #define TRUE  1
 #define FALSE 0
- 
-/**
- * SHA-256 work data
- */
-typedef struct {
-    UINT    DH[8];
-    UINT    DX[64];
-    BYTE    xBuff[4];
-    INT     xOff;
-    INT     xBuffOff;
-    INT     xByteCount;
-} Digest;
 
 /**
  * SCRYPT state
  */
 typedef struct {
-    __global Digest * restrict digest;          /* SHA-256 digest (Phase 1 and 3) */
-    __global Digest * restrict ipadDigest;      /* Saved input pad digest (Phase 1 and 3) */
-    __global Digest * restrict opadDigest;      /* Saved output pad digest (Phase 1 and 3) */
-             BYTE   * restrict B;               /* Hash buffer (Phase 1 and 3) */
              uint16 * restrict X0;              /* First half of Salsa array (All phases) */
              uint16 * restrict X1;              /* Second half of Salsa array (All phases) */
 } State;
