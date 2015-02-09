@@ -24,28 +24,28 @@ import java.security.NoSuchAlgorithmException;
 
 /**
  * SCRYPT hash algorithm for Monetary System currencies
- * 
+ *
  * Distributed as part of the Nxt reference software (NRS)
  */
 public class HashScrypt extends HashFunction {
-    
+
     /** Input data */
     private final byte[] input = new byte[40];
-    
+
     /** Target data */
     private final byte[] target = new byte[32];
 
     /** Scrypt message digest */
     private final Mac mac;
-    
+
     private final byte[] H = new byte[32];
     private final byte[] B = new byte[128 + 4];
     private final int[] X = new int[32];
     private final int[] V = new int[32 * 1024];
-    
+
     /** JNI hash function */
     private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
-    
+
     /**
      * Create a Scrypt hash function
      */
@@ -101,13 +101,13 @@ public class HashScrypt extends HashFunction {
         }
         return meetsTarget;
     }
-    
+
     /**
      * Perform a single hash
-     * 
+     *
      * @return                      TRUE if the target is met
      */
-    private boolean doHash() {    
+    private boolean doHash() {
         int i, j, k;
         //
         // Note that the nonce is stored in the first 8 bytes of the input data.  We will increment
@@ -171,7 +171,7 @@ public class HashScrypt extends HashFunction {
         } catch (ShortBufferException e) {
             throw new IllegalStateException(e);
         }
-                //
+        //
         // Check if we met the target
         //
         boolean isSolved = true;
@@ -194,6 +194,12 @@ public class HashScrypt extends HashFunction {
         return isSolved;
     }
 
+    /**
+     * Block mix
+     *
+     * @param       di          First block start index
+     * @param       xi          Second block start index
+     */
     private void xorSalsa8(int di, int xi) {
         int x00 = (X[di + 0] ^= X[xi + 0]);
         int x01 = (X[di + 1] ^= X[xi + 1]);
@@ -212,6 +218,9 @@ public class HashScrypt extends HashFunction {
         int x14 = (X[di + 14] ^= X[xi + 14]);
         int x15 = (X[di + 15] ^= X[xi + 15]);
         for (int i = 0; i < 8; i += 2) {
+            //
+            // Operate on the columns
+            //
             x04 ^= Integer.rotateLeft(x00 + x12, 7);
             x08 ^= Integer.rotateLeft(x04 + x00, 9);
             x12 ^= Integer.rotateLeft(x08 + x04, 13);
@@ -228,6 +237,9 @@ public class HashScrypt extends HashFunction {
             x07 ^= Integer.rotateLeft(x03 + x15, 9);
             x11 ^= Integer.rotateLeft(x07 + x03, 13);
             x15 ^= Integer.rotateLeft(x11 + x07, 18);
+            //
+            // Operate on the rows
+            //
             x01 ^= Integer.rotateLeft(x00 + x03, 7);
             x02 ^= Integer.rotateLeft(x01 + x00, 9);
             x03 ^= Integer.rotateLeft(x02 + x01, 13);
