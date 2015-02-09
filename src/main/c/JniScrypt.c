@@ -38,7 +38,7 @@ typedef struct {
     UINT    DH[8];
     UINT    DX[64];
     INT     xOff;
-    LONG    xByteCount;
+    INT     xByteCount;
 } Digest;
 
 /** SCRYPT state */
@@ -525,7 +525,7 @@ static void updateDigest(BYTE *buffer, int inOff, int inLen, Digest *digest) {
  * @param       digest      SHA-256 digest
  */
 static void finishDigest(BYTE *out, Digest *digest) {
-    LONG bitLength = (digest->xByteCount<<3);
+    LONG bitLength = ((LONG)digest->xByteCount<<3);
     //
     // Add the pad bytes
     //

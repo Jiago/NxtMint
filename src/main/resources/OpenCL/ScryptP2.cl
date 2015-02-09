@@ -94,46 +94,46 @@ static void hash(This *this, State *state) {
  * @param       X1              Second block
  */
 static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1) {
-    *X0 ^= *X1;
-    uint16 W = *X0;
+    uint16 W = *X0 ^= *X1;
     //
     // We have a 4x4 matrix where we operate on the columns first and then on the rows
     //
-    for (int i=0; i<8; i+=2) {
+    #pragma unroll (4)
+    for (int i=0; i<4; i++) {
             // Column operations
         W.s49E3 ^= rotate((uint4)(W.s0 + W.sC,
                                   W.s5 + W.s1,
                                   W.sA + W.s6,
-                                  W.sF + W.sB), 7);
+                                  W.sF + W.sB), 7U);
         W.s8D27 ^= rotate((uint4)(W.s4 + W.s0,
                                   W.s9 + W.s5,
                                   W.sE + W.sA,
-                                  W.s3 + W.sF), 9);
+                                  W.s3 + W.sF), 9U);
         W.sC16B ^= rotate((uint4)(W.s8 + W.s4,
                                   W.sD + W.s9,
                                   W.s2 + W.sE,
-                                  W.s7 + W.s3), 13);
+                                  W.s7 + W.s3), 13U);
         W.s05AF ^= rotate((uint4)(W.sC + W.s8,
                                   W.s1 + W.sD,
                                   W.s6 + W.s2,
-                                  W.sB + W.s7), 18);
+                                  W.sB + W.s7), 18U);
             // Row operations
         W.s16BC ^= rotate((uint4)(W.s0 + W.s3,
                                   W.s5 + W.s4,
                                   W.sA + W.s9,
-                                  W.sF + W.sE), 7);
+                                  W.sF + W.sE), 7U);
         W.s278D ^= rotate((uint4)(W.s1 + W.s0,
                                   W.s6 + W.s5,
                                   W.sB + W.sA,
-                                  W.sC + W.sF), 9);
+                                  W.sC + W.sF), 9U);
         W.s349E ^= rotate((uint4)(W.s2 + W.s1,
                                   W.s7 + W.s6,
                                   W.s8 + W.sB,
-                                  W.sD + W.sC), 13);
+                                  W.sD + W.sC), 13U);
         W.s05AF ^= rotate((uint4)(W.s3 + W.s2,
                                   W.s4 + W.s7,
                                   W.s9 + W.s8,
-                                  W.sE + W.sD), 18);
+                                  W.sE + W.sD), 18U);
     }
     *X0 += W;
 }
@@ -157,17 +157,17 @@ __kernel void run(__global uchar * kernelData,
     //
     // X0 and X1 are allocated in private memory and are preserved in global memory
     //
-    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*304+2*64));
+    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*296+2*64));
     State state;
     uint16 X0, X1;
-    X0 = vload16(0, (__global uint *)(stateData+3*304));
-    X1 = vload16(0, (__global uint *)(stateData+3*304+64));
+    X0 = vload16(0, (__global uint *)(stateData+3*296));
+    X1 = vload16(0, (__global uint *)(stateData+3*296+64));
     state.X0 = &X0;
     state.X1 = &X1;
     //
     // Hash the input data if we haven't found a solution yet
     //
     hash(this, &state);
-    vstore16(X0, 0, (__global uint *)(stateData+3*304));
-    vstore16(X1, 0, (__global uint *)(stateData+3*304+64));
+    vstore16(X0, 0, (__global uint *)(stateData+3*296));
+    vstore16(X1, 0, (__global uint *)(stateData+3*296+64));
 }
