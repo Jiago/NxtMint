@@ -33,17 +33,19 @@ if [ ! -d $JNI ] ; then
 fi
 
 echo "Building the Java include files"
-javah -d $INCLUDE -cp $CLASS $PKG.HashKnv25 $PKG.HashScrypt  || exit 1
+javah -d $INCLUDE -cp $CLASS $PKG.HashKnv25 $PKG.HashScrypt $PKG.HashSha3  || exit 1
 
 echo "Building NxtMint_x86_64.dll"
 gcc -c -O3 -m64 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniKnv25.o $SRC/JniKnv25.c || exit 1
 gcc -c -O3 -m64 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniScrypt.o $SRC/JniScrypt.c || exit 1
-gcc -m64 -shared -Wl,--kill-at -o $JNI/NxtMint_x86_64.dll $OBJ/JniKnv25.o $OBJ/JniScrypt.o || exit 1
+gcc -c -O3 -m64 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniSha3.o $SRC/JniSha3.c || exit 1
+gcc -m64 -shared -Wl,--kill-at -o $JNI/NxtMint_x86_64.dll $OBJ/JniKnv25.o $OBJ/JniScrypt.o $OBJ/JniSha3.o || exit 1
 
 echo "Building NxtMint_x86.dll"
 gcc -c -O3 -m32 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniKnv25.o $SRC/JniKnv25.c || exit 1
 gcc -c -O3 -m32 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniScrypt.o $SRC/JniScrypt.c || exit 1
-/c/mingw/bin/gcc -m32 -shared -Wl,--kill-at -o $JNI/NxtMint_x86.dll $OBJ/JniKnv25.o $OBJ/JniScrypt.o || exit 1
+gcc -c -O3 -m32 -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/win32" -o $OBJ/JniSha3.o $SRC/JniSha3.c || exit 1
+/c/mingw/bin/gcc -m32 -shared -Wl,--kill-at -o $JNI/NxtMint_x86.dll $OBJ/JniKnv25.o $OBJ/JniScrypt.o $OBJ/JniSha3.o || exit 1
 
 exit 0
 

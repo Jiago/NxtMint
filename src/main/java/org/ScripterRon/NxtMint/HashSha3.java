@@ -14,43 +14,74 @@
  * limitations under the License.
  */
 package org.ScripterRon.NxtMint;
+import static org.ScripterRon.NxtMint.Main.log;
 
 import org.bouncycastle.jcajce.provider.digest.SHA3;
 import java.security.MessageDigest;
+import static org.ScripterRon.NxtMint.HashFunction.jniAvailable;
 
 /**
  * SHA-3 hash function
  */
 public class HashSha3 extends HashFunction {
-    
+
     /** SHA-3 message digest */
     private final MessageDigest md;
-    
+
+    /** Input data */
+    private final byte[] input = new byte[40];
+
+    /** Target data */
+    private final byte[] target = new byte[32];
+
+    /** JNI hash function */
+    private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
+
     /**
      * Create a SHA-3 hash function
      */
     public HashSha3() {
         md = new SHA3.DigestSHA3(256);
     }
-    
+
     /**
      * Hash the input bytes
-     * 
-     * @param       input           Input bytes (40 bytes)
-     * @param       target          Target (32 bytes)
+     *
+     * @param       inputBytes      Input bytes (40 bytes)
+     * @param       targetBytes     Target (32 bytes)
      * @param       initialNonce    Initial nonce
      * @return                      Hash digest (32 bytes)
      */
     @Override
-    public boolean hash(byte[] input, byte[] target, long initialNonce) {
+    public boolean hash(byte[] inputBytes, byte[] targetBytes, long initialNonce) {
+        int count = 1024*1024;
+        boolean meetsTarget = false;
+        //
+        // Use the JNI hash function if it is available
+        //
+        if (jniAvailable) {
+            JniHashResult result = JniHash(inputBytes, targetBytes, initialNonce, 2*count);
+            if (result != null) {
+                meetsTarget = result.isSolved();
+                nonce = result.getNonce();
+                hashCount = result.getCount();
+            } else {
+                log.error("No result returned by JniSha3");
+            }
+            return meetsTarget;
+        }
+        //
+        // Use the Java hash function
+        //
+        System.arraycopy(inputBytes, 0, input, 0, 40);
+        System.arraycopy(targetBytes, 0, target, 0, 32);
         nonce = initialNonce;
         hashCount = 0;
-        boolean meetsTarget = false;
         Thread thread = Thread.currentThread();
         //
         // Keep hashing until we meet the target or the maximum loop count is reached
         //
-        for (int i=0; i<512*1024 && !meetsTarget; i++) {
+        for (int i=0; i<count && !meetsTarget; i++) {
             if (thread.isInterrupted())
                 break;
             //
@@ -88,6 +119,6 @@ public class HashSha3 extends HashFunction {
             if (meetsTarget)
                 System.arraycopy(output, 0, digest, 0, 32);
         }
-        return meetsTarget;    
+        return meetsTarget;
     }
 }

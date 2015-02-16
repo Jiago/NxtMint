@@ -5,7 +5,7 @@
 #############################################
 
 JAVA_HOME=/usr/lib/jvm/default-java
-CLASS=NxtMint-1.2.0.jar
+CLASS=NxtMint-1.5.0.jar
 INCLUDE=include
 SRC=src
 OBJ=obj
@@ -25,17 +25,19 @@ if [ ! -d $JNI ] ; then
 fi
 
 echo "Building the Java include files"
-javah -d $INCLUDE -cp $CLASS $PKG.HashKnv25 $PKG.HashScrypt  || exit 1
+javah -d $INCLUDE -cp $CLASS $PKG.HashKnv25 $PKG.HashScrypt $PKG.HashSha3 || exit 1
 
 echo "Building libNxtMint_x86_64.so"
 gcc -c -O3 -m64 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniKnv25.o $SRC/JniKnv25.c || exit 1
 gcc -c -O3 -m64 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniScrypt.o $SRC/JniScrypt.c || exit 1
-gcc -m64 -shared -o $JNI/libNxtMint_x86_64.so $OBJ/JniKnv25.o $OBJ/JniScrypt.o || exit 1
+gcc -c -O3 -m64 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniSha3.o $SRC/JniSha3.c || exit 1
+gcc -m64 -shared -o $JNI/libNxtMint_x86_64.so $OBJ/JniKnv25.o $OBJ/JniScrypt.o $OBJ/JniSha3.o || exit 1
 
 echo "Building libNxtMint_x86.so"
 gcc -c -O3 -m32 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniKnv25.o $SRC/JniKnv25.c || exit 1
 gcc -c -O3 -m32 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniScrypt.o $SRC/JniScrypt.c || exit 1
-gcc -m32 -shared -o $JNI/libNxtMint_x86.so $OBJ/JniKnv25.o $OBJ/JniScrypt.o || exit 1
+gcc -c -O3 -m32 -fPIC -D_POSIX_C_SOURCE -I"$INCLUDE" -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/linux" -o $OBJ/JniSha3.o $SRC/JniSha3.c || exit 1
+gcc -m32 -shared -o $JNI/libNxtMint_x86.so $OBJ/JniKnv25.o $OBJ/JniScrypt.o $OBJ/JniSha3.o || exit 1
 
 exit 0
 

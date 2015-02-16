@@ -18,7 +18,7 @@ import static org.ScripterRon.NxtMint.Main.log;
 
 /**
  * KECCAK25 hash algorithm for Monetary System currencies
- * 
+ *
  * Distributed as part of the Nxt reference software (NRS)
  */
 public class HashKnv25 extends HashFunction {
@@ -31,16 +31,16 @@ public class HashKnv25 extends HashFunction {
         -9223372036854743037L, -9223372036854743038L, -9223372036854775680L, 32778L, -9223372034707292150L,
         -9223372034707259263L, -9223372036854742912L, 2147483649L, -9223372034707259384L, 1L
     };
-    
+
     /** Input data */
     private final byte[] input = new byte[40];
-    
+
     /** Target data */
     private final byte[] target = new byte[32];
-    
+
     /** JNI hash function */
     private native JniHashResult JniHash(byte[] input, byte[] target, long nonce, int count);
-    
+
     /**
      * Create a new KECCAK25 hash function
      */
@@ -80,7 +80,6 @@ public class HashKnv25 extends HashFunction {
         System.arraycopy(targetBytes, 0, target, 0, 32);
         nonce = initialNonce;
         hashCount = 0;
-        
         Thread thread = Thread.currentThread();
         //
         // Keep hashing until we meet the target or the maximum loop count is reached
@@ -93,10 +92,10 @@ public class HashKnv25 extends HashFunction {
         }
         return meetsTarget;
     }
-    
+
     /**
      * Perform a single hash
-     * 
+     *
      * @return                      TRUE if the target is met
      */
     private boolean doHash() {
@@ -108,42 +107,42 @@ public class HashKnv25 extends HashFunction {
         //
         nonce++;
         long state0 = nonce;
-        long state1 = ((long)input[8] & 0xFF) | 
-                        (((long)input[9] & 0xFF) << 8) | 
-                        (((long)input[10] & 0xFF) << 16) | 
-                        (((long)input[11] & 0xFF) << 24) | 
-                        (((long)input[12] & 0xFF) << 32) | 
-                        (((long)input[13] & 0xFF) << 40) | 
-                        (((long)input[14] & 0xFF) << 48) | 
+        long state1 = ((long)input[8] & 0xFF) |
+                        (((long)input[9] & 0xFF) << 8) |
+                        (((long)input[10] & 0xFF) << 16) |
+                        (((long)input[11] & 0xFF) << 24) |
+                        (((long)input[12] & 0xFF) << 32) |
+                        (((long)input[13] & 0xFF) << 40) |
+                        (((long)input[14] & 0xFF) << 48) |
                         (((long)input[15] & 0xFF) << 56);
-        long state2 = ((long)input[16] & 0xFF) | 
-                        (((long)input[17] & 0xFF) << 8) | 
-                        (((long)input[18] & 0xFF) << 16) | 
-                        (((long)input[19] & 0xFF) << 24) | 
-                        (((long)input[20] & 0xFF) << 32) | 
-                        (((long)input[21] & 0xFF) << 40) | 
-                        (((long)input[22] & 0xFF) << 48) | 
+        long state2 = ((long)input[16] & 0xFF) |
+                        (((long)input[17] & 0xFF) << 8) |
+                        (((long)input[18] & 0xFF) << 16) |
+                        (((long)input[19] & 0xFF) << 24) |
+                        (((long)input[20] & 0xFF) << 32) |
+                        (((long)input[21] & 0xFF) << 40) |
+                        (((long)input[22] & 0xFF) << 48) |
                         (((long)input[23] & 0xFF) << 56);
-        long state3 = ((long)input[24] & 0xFF) | 
-                        (((long)input[25] & 0xFF) << 8) | 
-                        (((long)input[26] & 0xFF) << 16) | 
-                        (((long)input[27] & 0xFF) << 24) | 
-                        (((long)input[28] & 0xFF) << 32) | 
-                        (((long)input[29] & 0xFF) << 40) | 
-                        (((long)input[30] & 0xFF) << 48) | 
+        long state3 = ((long)input[24] & 0xFF) |
+                        (((long)input[25] & 0xFF) << 8) |
+                        (((long)input[26] & 0xFF) << 16) |
+                        (((long)input[27] & 0xFF) << 24) |
+                        (((long)input[28] & 0xFF) << 32) |
+                        (((long)input[29] & 0xFF) << 40) |
+                        (((long)input[30] & 0xFF) << 48) |
                         (((long)input[31] & 0xFF) << 56);
-        long state4 = ((long)input[32] & 0xFF) | 
-                        (((long)input[33] & 0xFF) << 8) | 
-                        (((long)input[34] & 0xFF) << 16) | 
-                        (((long)input[35] & 0xFF) << 24) | 
-                        (((long)input[36] & 0xFF) << 32) | 
-                        (((long)input[37] & 0xFF) << 40) | 
-                        (((long)input[38] & 0xFF) << 48) | 
-                        (((long)input[39] & 0xFF) << 56);      
+        long state4 = ((long)input[32] & 0xFF) |
+                        (((long)input[33] & 0xFF) << 8) |
+                        (((long)input[34] & 0xFF) << 16) |
+                        (((long)input[35] & 0xFF) << 24) |
+                        (((long)input[36] & 0xFF) << 32) |
+                        (((long)input[37] & 0xFF) << 40) |
+                        (((long)input[38] & 0xFF) << 48) |
+                        (((long)input[39] & 0xFF) << 56);
         long state5 = 1;
         long state16 = -9223372036854775808L;
-        long state6=0, state7=0, state8=0, state9=0, state10=0, state11=0, state12=0, 
-                state13=0, state14=0, state15=0, state17=0, state18=0, state19=0, 
+        long state6=0, state7=0, state8=0, state9=0, state10=0, state11=0, state12=0,
+                state13=0, state14=0, state15=0, state17=0, state18=0, state19=0,
                 state20=0, state21=0, state22=0, state23=0, state24=0;
         //
         // Calculate the hash digest
@@ -315,7 +314,7 @@ public class HashKnv25 extends HashFunction {
             digest[28] = (byte)(state3 >> 32);
             digest[29] = (byte)(state3 >> 40);
             digest[30] = (byte)(state3 >> 48);
-            digest[31] = (byte)(state3 >> 56); 
+            digest[31] = (byte)(state3 >> 56);
         }
         return isSolved;
     }
