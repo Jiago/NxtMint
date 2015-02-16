@@ -383,16 +383,18 @@ __kernel void run(__global uchar * kernelData,
     // B is allocated in private memory and is not preserved in global memory
     // X0 and X1 are allocated in private memory and are preserved in global memory
     //
-    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*296+2*64));
+    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*296+8+2*64));
     State state;
     state.digest = (__global Digest *)(stateData+0);
     state.ipadDigest = (__global Digest *)(stateData+296);
     state.opadDigest = (__global Digest *)(stateData+2*296);
     BYTE B[132];
     state.B = B;
-    uint16 X0 = vload16(0, (__global uint *)(stateData+3*296));
+    __global uint16 *pX0 = (__global uint16 *)(stateData+3*296+8);
+    __global uint16 *pX1 = (__global uint16 *)(stateData+3*296+8+64);
+    uint16 X0 = *pX0;
+    uint16 X1 = *pX1;
     state.X0 = &X0;
-    uint16 X1 = vload16(0, (__global uint *)(stateData+3*296+64));
     state.X1 = &X1;
     //
     // Hash the input data if we haven't found a solution yet

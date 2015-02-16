@@ -98,7 +98,7 @@ public class GpuScrypt extends GpuFunction {
         memObjects[0] = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
                                           Sizeof.cl_uchar*kernelData.length, null, null);
         memObjects[1] = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
-                                          Sizeof.cl_uchar*(3*296+2*64), null, null);
+                                          Sizeof.cl_uchar*(3*296+8+2*64), null, null);
         memObjects[2] = CL.clCreateBuffer(context, CL.CL_MEM_READ_WRITE,
                                           Sizeof.cl_uint*32*1024*globalSize, null, null);
         //

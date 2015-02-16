@@ -43,11 +43,11 @@ typedef struct {
  * Kernel arguments 
  */
 typedef struct This_s {
-    __global uchar * restrict input;            /* Input data (Phase 1 and Phase 3) */
-    __global ulong * restrict target;           /* Hash target (Phase 3) */
-    __global ulong * restrict solution;         /* Solution nonce (Phase 3) */
-             int              passId;           /* Pass identifier */
-    __global uint  *          V;                /* Pad cache (Phase 2) */
+    __global uchar  * restrict input;           /* Input data (Phase 1 and Phase 3) */
+    __global ulong  * restrict target;          /* Hash target (Phase 3) */
+    __global ulong  * restrict solution;        /* Solution nonce (Phase 3) */
+             int               passId;          /* Pass identifier */
+    __global uint16 *          V;               /* Pad cache (Phase 2) */
 } This;
 
 /** Hash functions */
@@ -66,22 +66,22 @@ static void hash(This *this, State *state) {
     // unsigned integers and there are 1024 cache entries for each work item.
     // 
     int groupSize = get_local_size(0);
-    __global uint * vBase = this->V + (get_group_id(0)*groupSize*32*1024 + get_local_id(0)*32);
-    int vInc = groupSize*32;
+    __global uint16 * vBase = this->V + (get_group_id(0)*groupSize*2*1024 + get_local_id(0)*2);
+    int vInc = groupSize*2;
     //
     // Perform the hashes
     //
-    __global uint * pV = vBase;
+    __global uint16 * pV = vBase;
     for (i=0; i<1024; i++, pV+=vInc) {
-        *(__global uint16 *)pV = *state->X0;
-        *(__global uint16 *)(pV+16) = *state->X1;
+        *pV = *state->X0;
+        *(pV+1) = *state->X1;
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }
     for (i=0; i<1024; i++) {
         pV = vBase + (((*state->X1).s0 & 1023) * vInc);
-        *state->X0 ^= *(__global uint16 *)pV;
-        *state->X1 ^= *(__global uint16 *)(pV+16);
+        *state->X0 ^= *pV;
+        *state->X1 ^= *(pV+1);
         xorSalsa8(state->X0, state->X1);
         xorSalsa8(state->X1, state->X0);
     }
@@ -141,10 +141,10 @@ static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1) {
 /**
  * Run the kernel
  */
-__kernel void run(__global uchar * kernelData, 
-                  __global uchar * stateBytes,
-                  __global uint  * V,
-                           int     passId) {
+__kernel void run(__global uchar  * kernelData, 
+                  __global uchar  * stateBytes,
+                  __global uint16 * V,
+                           int      passId) {
     //
     // Pass kernel arguments to internal routines
     //
@@ -157,17 +157,18 @@ __kernel void run(__global uchar * kernelData,
     //
     // X0 and X1 are allocated in private memory and are preserved in global memory
     //
-    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*296+2*64));
+    __global uchar *stateData = stateBytes+(get_global_id(0)*(3*296+8+2*64));
     State state;
-    uint16 X0, X1;
-    X0 = vload16(0, (__global uint *)(stateData+3*296));
-    X1 = vload16(0, (__global uint *)(stateData+3*296+64));
+    __global uint16 *pX0 = (__global uint16 *)(stateData+3*296+8);
+    __global uint16 *pX1 = (__global uint16 *)(stateData+3*296+8+64);
+    uint16 X0 = *pX0;
+    uint16 X1 = *pX1;
     state.X0 = &X0;
     state.X1 = &X1;
     //
     // Hash the input data if we haven't found a solution yet
     //
     hash(this, &state);
-    vstore16(X0, 0, (__global uint *)(stateData+3*296));
-    vstore16(X1, 0, (__global uint *)(stateData+3*296+64));
+    *pX0 = X0;
+    *pX1 = X1;
 }
