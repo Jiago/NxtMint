@@ -47,15 +47,6 @@ __constant ULONG KeccakRoundConstants[] = {
     0x8000000000008080UL, 0x0000000080000001UL, 0x8000000080008008UL
 };
 
-/** Keccak RHO offsets */
-__constant UINT KeccakRhoOffsets[] = {
-    0x00000000U, 0x00000001U, 0x0000003EU, 0x0000001CU, 0x0000001BU,
-    0x00000024U, 0x0000002CU, 0x00000006U, 0x00000037U, 0x00000014U,
-    0x00000003U, 0x0000000AU, 0x0000002BU, 0x00000019U, 0x00000027U,
-    0x00000029U, 0x0000002DU, 0x0000000FU, 0x00000015U, 0x00000008U,
-    0x00000012U, 0x00000002U, 0x0000003DU, 0x00000038U, 0x0000000EU
-};
-
 /** 
  * Kernel arguments 
  */
@@ -106,51 +97,79 @@ static void hash(This *this) {
     // Perform the Keccak permutations
     //
     for (i=0; i<24; i++) {
-        // theta(state))
-        ULONG C[5];
-        int x, y;
-        for (x=0; x<5; x++) {
-            C[x] = 0;
-            #pragma unroll
-            for (y=0; y<5; y++)
-                C[x] ^= state[x+5*y];
-        }
-        for (x=0; x<5; x++) {
-            ULONG dX = rotateLeft(C[(x+1)%5], 1) ^ C[(x+4)%5];
-            #pragma unroll
-            for (y=0; y<5; y++)
-                state[x+5*y] ^= dX;
-        }
-        // rho(state)
-        for (x=0; x<5; x++) {
-            #pragma unroll
-            for (y=0; y<5; y++) {
-                int index = x+5*y;
-                state[index] = (KeccakRhoOffsets[index]!=0 ?
-                    rotateLeft(state[index], KeccakRhoOffsets[index]) : state[index]);
-            }
-        }
-        // pi(state)
+            // theta(state)
+        ULONG C[5], dX;
+        C[0] = state[0] ^ state[5] ^ state[10] ^ state[15] ^ state[20];
+        C[1] = state[1] ^ state[6] ^ state[11] ^ state[16] ^ state[21];
+        C[2] = state[2] ^ state[7] ^ state[12] ^ state[17] ^ state[22];
+        C[3] = state[3] ^ state[8] ^ state[13] ^ state[18] ^ state[23];
+        C[4] = state[4] ^ state[9] ^ state[14] ^ state[19] ^ state[24];
+        dX = rotateLeft(C[1], 1) ^ C[4];
+        state[0] ^= dX;  state[5] ^= dX;  state[10] ^= dX;  state[15] ^= dX;  state[20] ^= dX;
+        dX = rotateLeft(C[2], 1) ^ C[0];
+        state[1] ^= dX;  state[6] ^= dX;  state[11] ^= dX;  state[16] ^= dX;  state[21] ^= dX;
+        dX = rotateLeft(C[3], 1) ^ C[1];
+        state[2] ^= dX;  state[7] ^= dX;  state[12] ^= dX;  state[17] ^= dX;  state[22] ^= dX;
+        dX = rotateLeft(C[4], 1) ^ C[2];
+        state[3] ^= dX;  state[8] ^= dX;  state[13] ^= dX;  state[18] ^= dX;  state[23] ^= dX;
+        dX = rotateLeft(C[0], 1) ^ C[3];
+        state[4] ^= dX;  state[9] ^= dX;  state[14] ^= dX;  state[19] ^= dX;  state[24] ^= dX;
+            // rho(state)
+        //state[0] = rotateLeft(state[0], 0);
+        state[5] = rotateLeft(state[5], 36);
+        state[10] = rotateLeft(state[10], 3);
+        state[15] = rotateLeft(state[15], 41);
+        state[20] = rotateLeft(state[20], 18);
+        
+        state[1] = rotateLeft(state[1], 1);
+        state[6] = rotateLeft(state[6], 44);
+        state[11] = rotateLeft(state[11], 10);
+        state[16] = rotateLeft(state[16], 45);
+        state[21] = rotateLeft(state[21], 2);
+        
+        state[2] = rotateLeft(state[2], 62);
+        state[7] = rotateLeft(state[7], 6);
+        state[12] = rotateLeft(state[12], 43);
+        state[17] = rotateLeft(state[17], 15);
+        state[22] = rotateLeft(state[22], 61);
+        
+        state[3] = rotateLeft(state[3], 28);
+        state[8] = rotateLeft(state[8], 55);
+        state[13] = rotateLeft(state[13], 25);
+        state[18] = rotateLeft(state[18], 21);
+        state[23] = rotateLeft(state[23], 56);
+        
+        state[4] = rotateLeft(state[4], 27);
+        state[9] = rotateLeft(state[9], 20);
+        state[14] = rotateLeft(state[14], 39);
+        state[19] = rotateLeft(state[19], 8);
+        state[24] = rotateLeft(state[24], 14);
+            // pi(state)
         ULONG tempA[25];
-        #pragma unroll
-        for (x=0; x<25; x++)
-            tempA[x] = state[x];
-        for (x=0; x<5; x++) {
-            #pragma unroll
-            for (y=0; y<5; y++)
-                state[y+5 * ((2*x + 3*y) % 5)] = tempA[x+5*y];
-        }
-        // chi(state)
+        tempA[0]  = state[0];  tempA[1]  = state[1];  tempA[2]  = state[2];  tempA[3]  = state[3];  tempA[4]  = state[4];
+        tempA[5]  = state[5];  tempA[6]  = state[6];  tempA[7]  = state[7];  tempA[8]  = state[8];  tempA[9]  = state[9];
+        tempA[10] = state[10]; tempA[11] = state[11]; tempA[12] = state[12]; tempA[13] = state[13]; tempA[14] = state[14];
+        tempA[15] = state[15]; tempA[16] = state[16]; tempA[17] = state[17]; tempA[18] = state[18]; tempA[19] = state[19];
+        tempA[20] = state[20]; tempA[21] = state[21]; tempA[22] = state[22]; tempA[23] = state[23]; tempA[24] = state[24];
+        
+        state[0]  = tempA[0]; state[16] = tempA[5]; state[7]  = tempA[10]; state[23] = tempA[15]; state[14] = tempA[20];
+        state[10] = tempA[1]; state[1]  = tempA[6]; state[17] = tempA[11]; state[8]  = tempA[16]; state[24] = tempA[21];
+        state[20] = tempA[2]; state[11] = tempA[7]; state[2]  = tempA[12]; state[18] = tempA[17]; state[9]  = tempA[22];
+        state[5]  = tempA[3]; state[21] = tempA[8]; state[12] = tempA[13]; state[3]  = tempA[18]; state[19] = tempA[23];
+        state[15] = tempA[4]; state[6]  = tempA[9]; state[22] = tempA[14]; state[13] = tempA[19]; state[4]  = tempA[24];
+            // chi(state)
         ULONG chiC[5];
+        int y;
         for (y=0; y<5; y++) {
-            #pragma unroll
-            for (x=0; x<5; x++)
-                chiC[x] = state[x+5*y] ^ ((~state[(((x+1)%5)+5*y)]) & state[(((x+2)%5)+5*y)]);
-            #pragma unroll
-            for (x=0; x<5; x++)
-                state[x+5*y] = chiC[x];
+            chiC[0] = state[0+5*y] ^ ((~state[1+5*y]) & state[2+5*y]);
+            chiC[1] = state[1+5*y] ^ ((~state[2+5*y]) & state[3+5*y]);
+            chiC[2] = state[2+5*y] ^ ((~state[3+5*y]) & state[4+5*y]);
+            chiC[3] = state[3+5*y] ^ ((~state[4+5*y]) & state[0+5*y]);
+            chiC[4] = state[4+5*y] ^ ((~state[0+5*y]) & state[1+5*y]);
+            state[0+5*y] = chiC[0];  state[1+5*y] = chiC[1];  state[2+5*y] = chiC[2];
+            state[3+5*y] = chiC[3];  state[4+5*y] = chiC[4];
         }
-        // iota(state, i)
+            // iota(state, i)
         state[0] ^= KeccakRoundConstants[i];
     }
     //
