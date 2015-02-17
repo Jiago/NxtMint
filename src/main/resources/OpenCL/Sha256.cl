@@ -165,8 +165,7 @@ __kernel void run(__global uchar  *kernelData,
     this->solution = kernelData+96;
     this->passId = passId;
     //
-    // Hash the input data if we haven't found a solution yet
+    // Hash the input data
     //
     hash(this);
 }
-

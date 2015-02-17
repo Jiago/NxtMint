@@ -33,52 +33,52 @@ import java.io.IOException;
  * Currency minting hash functions using the GPU
  */
 public abstract class GpuFunction {
-    
+
     /** GPU device */
     protected GpuDevice gpuDevice;
-    
+
     /** Execution count */
     protected int count;
-    
+
     /** Execution passes */
     protected int passes;
-    
+
     /** Global size */
     protected int globalSize;
-    
+
     /** Local size */
     protected int localSize;
-    
+
     /** Maximum memory allocation size */
     protected long maxAllocationSize;
-    
+
     /** Preferred local size */
     protected int preferredLocalSize;
-    
+
     /** Nonce */
     protected long nonce;
-    
+
     /** Target is met */
     protected boolean meetsTarget;
-    
+
     /** OpenCL context */
     protected cl_context context;
-    
+
     /** OpenCL command queue */
     protected cl_command_queue commandQueue;
-    
+
     /** OpenCL memory objects */
     protected cl_mem[] memObjects;
-    
+
     /** OpenCL kernel */
     protected cl_kernel[] kernels;
-    
+
     /** OpenCL resources allocated */
     protected boolean resourcesAllocated;
-    
+
     /**
      * Private constructor for use by subclasses
-     * 
+     *
      * @param       gpuDevice       The GPU device
      * @param       pgmNames        OpenCL program names
      * @throws      CLException     OpenCL error occurred
@@ -144,10 +144,10 @@ public abstract class GpuFunction {
         preferredLocalSize = (int)OpenCL.getSize(kernels[0], gpuDevice.getDevice(),
                                                  CL.CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE);
     }
-    
+
     /**
      * Create a hash function for the specified algorithm
-     * 
+     *
      * @param       algorithm       Hash algorithm
      * @param       gpuDevice       GPU device
      * @return                      Hash function
@@ -160,6 +160,9 @@ public abstract class GpuFunction {
             case 2:                 // SHA256
                 hashFunction = new GpuSha256(gpuDevice);
                 break;
+            case 3:                 // SHA3-256
+                hashFunction = new GpuSha3(gpuDevice);
+                break;
             case 5:                 // SCRYPT
                 hashFunction = new GpuScrypt(gpuDevice);
                 break;
@@ -171,38 +174,38 @@ public abstract class GpuFunction {
         }
         return hashFunction;
     }
-    
+
     /**
      * Check for a supported algorithm
-     * 
+     *
      * @param       algorithm       Hash algorithm
      * @return                      TRUE if the algorithm is supported
      */
     public static boolean isSupported(int algorithm) {
-        return (algorithm==2 || algorithm==5 || algorithm==25);
+        return (algorithm==2 || algorithm==3 || algorithm==5 || algorithm==25);
     }
 
     /**
      * Check if we found a solution
-     * 
+     *
      * @return                      TRUE if we found a solution
      */
     public boolean isSolved() {
         return meetsTarget;
     }
-    
+
     /**
      * Return the nonce used to solve the hash
-     * 
+     *
      * @return                      Nonce
      */
     public long getNonce() {
         return nonce;
     }
-    
+
     /**
      * Return the execution count
-     * 
+     *
      * @return                      Kernel execution count
      */
     public int getCount() {
@@ -211,25 +214,25 @@ public abstract class GpuFunction {
 
     /**
      * Set the input data and the hash target
-     * 
+     *
      * The input data is in the following format:
      *     Bytes 0-7:   Initial nonce (modified for each kernel instance)
      *     Bytes 8-15:  Currency identifier
      *     Bytes 16-23: Currency units
      *     Bytes 24-31: Minting counter
      *     Bytes 32-39: Account identifier
-     * 
+     *
      * The hash target and hash digest are treated as unsigned 32-byte numbers in little-endian format.
      * The digest must be less than the target in order to be a solution.
-     * 
+     *
      * @param       inputBytes      Bytes to be hashed (40 bytes)
      * @param       targetBytes     Hash target (32 bytes)
      */
     public abstract void setInput(byte[] inputBytes, byte[] targetBytes);
-    
+
     /**
      * Execute the kernel
-     * 
+     *
      * @return                      TRUE if the kernel was executed
      */
     public abstract boolean execute();
