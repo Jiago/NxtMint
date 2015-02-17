@@ -5,5 +5,5 @@
 @REM ###################################################
 
 @echo Starting NxtMint
-java -Xmx256m -Djava.library.path="jni" -jar NxtMint-1.5.0.jar
+java -Xmx256m -Djava.library.path="jni" -jar NxtMint-1.6.0.jar
 
