@@ -54,6 +54,13 @@ typedef struct This_s {
 static void hash(This *this, State *state);
 static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1);
 
+/** Helper functions */
+#ifdef USE_ROTATE
+#define rotateLeft(x, c) rotate((x), (uint)(c))
+#else
+#define rotateLeft(x, c) (((x)<<c) | ((x)>>(32-c)))
+#endif
+
 /**
  * Do the hash
  */
@@ -94,48 +101,61 @@ static void hash(This *this, State *state) {
  * @param       X1              Second block
  */
 static void xorSalsa8(uint16 * restrict X0, uint16 * restrict X1) {
-    uint16 W = *X0 ^= *X1;
+    *X0 ^= *X1;
+    uint W0  = (*X0).s0;   uint W1  = (*X0).s1;   uint W2  = (*X0).s2;    uint W3  = (*X0).s3;
+    uint W4  = (*X0).s4;   uint W5  = (*X0).s5;   uint W6  = (*X0).s6;    uint W7  = (*X0).s7;
+    uint W8  = (*X0).s8;   uint W9  = (*X0).s9;   uint W10 = (*X0).sA;    uint W11 = (*X0).sB;
+    uint W12 = (*X0).sC;   uint W13 = (*X0).sD;   uint W14 = (*X0).sE;    uint W15 = (*X0).sF;
     //
     // We have a 4x4 matrix where we operate on the columns first and then on the rows
     //
-    #pragma unroll (4)
+    #pragma unroll
     for (int i=0; i<4; i++) {
             // Column operations
-        W.s49E3 ^= rotate((uint4)(W.s0 + W.sC,
-                                  W.s5 + W.s1,
-                                  W.sA + W.s6,
-                                  W.sF + W.sB), 7U);
-        W.s8D27 ^= rotate((uint4)(W.s4 + W.s0,
-                                  W.s9 + W.s5,
-                                  W.sE + W.sA,
-                                  W.s3 + W.sF), 9U);
-        W.sC16B ^= rotate((uint4)(W.s8 + W.s4,
-                                  W.sD + W.s9,
-                                  W.s2 + W.sE,
-                                  W.s7 + W.s3), 13U);
-        W.s05AF ^= rotate((uint4)(W.sC + W.s8,
-                                  W.s1 + W.sD,
-                                  W.s6 + W.s2,
-                                  W.sB + W.s7), 18U);
+        W4  ^= rotateLeft(W0 + W12, 7);
+        W9  ^= rotateLeft(W5 + W1, 7);
+        W14 ^= rotateLeft(W10 + W6, 7);
+        W3  ^= rotateLeft(W15 + W11, 7);
+        
+        W8  ^= rotateLeft(W4 + W0, 9);
+        W13 ^= rotateLeft(W9 + W5, 9);
+        W2  ^= rotateLeft(W14 + W10, 9);
+        W7  ^= rotateLeft(W3 + W15, 9);
+        
+        W12 ^= rotateLeft(W8 + W4, 13);
+        W1  ^= rotateLeft(W13 + W9, 13);
+        W6  ^= rotateLeft(W2 + W14, 13);
+        W11 ^= rotateLeft(W7 + W3, 13);
+        
+        W0  ^= rotateLeft(W12 + W8, 18);
+        W5  ^= rotateLeft(W1 + W13, 18);
+        W10 ^= rotateLeft(W6 + W2, 18);
+        W15 ^= rotateLeft(W11 + W7, 18);
             // Row operations
-        W.s16BC ^= rotate((uint4)(W.s0 + W.s3,
-                                  W.s5 + W.s4,
-                                  W.sA + W.s9,
-                                  W.sF + W.sE), 7U);
-        W.s278D ^= rotate((uint4)(W.s1 + W.s0,
-                                  W.s6 + W.s5,
-                                  W.sB + W.sA,
-                                  W.sC + W.sF), 9U);
-        W.s349E ^= rotate((uint4)(W.s2 + W.s1,
-                                  W.s7 + W.s6,
-                                  W.s8 + W.sB,
-                                  W.sD + W.sC), 13U);
-        W.s05AF ^= rotate((uint4)(W.s3 + W.s2,
-                                  W.s4 + W.s7,
-                                  W.s9 + W.s8,
-                                  W.sE + W.sD), 18U);
+        W1  ^= rotateLeft(W0 + W3, 7);
+        W6  ^= rotateLeft(W5 + W4, 7);
+        W11 ^= rotateLeft(W10 + W9, 7);
+        W12 ^= rotateLeft(W15 + W14, 7);
+        
+        W2  ^= rotateLeft(W1 + W0, 9);
+        W7  ^= rotateLeft(W6 + W5, 9);
+        W8  ^= rotateLeft(W11 + W10, 9);
+        W13 ^= rotateLeft(W12 + W15, 9);
+        
+        W3  ^= rotateLeft(W2 + W1, 13);
+        W4  ^= rotateLeft(W7 + W6, 13);
+        W9  ^= rotateLeft(W8 + W11, 13);
+        W14 ^= rotateLeft(W13 + W12, 13);
+        
+        W0  ^= rotateLeft(W3 + W2, 18);
+        W5  ^= rotateLeft(W4 + W7, 18);
+        W10 ^= rotateLeft(W9 + W8, 18);
+        W15 ^= rotateLeft(W14 + W13, 18);
     }
-    *X0 += W;
+    (*X0).s0 += W0;  (*X0).s1 += W1;  (*X0).s2 += W2;  (*X0).s3 += W3;
+    (*X0).s4 += W4;  (*X0).s5 += W5;  (*X0).s6 += W6;  (*X0).s7 += W7;
+    (*X0).s8 += W8;  (*X0).s9 += W9;  (*X0).sA += W10; (*X0).sB += W11;
+    (*X0).sC += W12; (*X0).sD += W13; (*X0).sE += W14; (*X0).sF += W15;
 }
 
 /**
