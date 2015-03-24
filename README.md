@@ -70,6 +70,15 @@ The following configuration options can be specified in NxtMint.conf.  This file
   - apiPort=port		
 	Specifies the NRS API port and defaults to 7876.    
     
+  - useSSL=boolean      
+    Specify 'true' to use HTTPS or 'false' to use HTTP to connect to the NRS node.  The default is 'false'.
+    
+  - allowNameMismatch=boolean       
+    Specify 'true' to allow an HTTPS connection or 'false' to reject an HTTPS connection if the host name does not match the SSL certificate name.  The default is 'false'.
+    
+  - acceptAnyCertificate=boolean
+    Specify 'true' to accept the server certificate without verifying the trust path or 'false' to verify the certificate trust path before accepting the connection.  The default is 'false'.
+    
   - secretPhrase=phrase     
     Specifies the account secret phrase and must be specified.  The secret phrase will not be sent to the NRS server.   
     

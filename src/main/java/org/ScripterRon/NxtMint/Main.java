@@ -87,7 +87,7 @@ public class Main {
 
     /** Application properties file */
     private static File propFile;
-    
+
     /** Enable the GUI */
     public static boolean enableGUI = true;
 
@@ -111,43 +111,52 @@ public class Main {
 
     /** Nxt API port */
     public static int apiPort = 7876;
-    
+
+    /** Use HTTPS connections */
+    public static boolean useSSL = false;
+
+    /** Allow host name mismatch */
+    public static boolean allowNameMismatch = false;
+
+    /** Accept any server certificate */
+    public static boolean acceptAnyCertificate = false;
+
     /** Secret phrase */
     public static String secretPhrase;
-    
+
     /** Currency code */
     public static String currencyCode;
-    
+
     /** Currency units */
     public static double currencyUnits;
-    
+
     /** CPU worker thread count */
     public static int cpuThreads = 1;
-    
+
     /** GPU intensity */
     public static int gpuIntensity = 0;
-    
+
     /** GPU devices */
     public static List<Integer> gpuDevices = new ArrayList<>();
-    
+
     /** GPU work group sizes */
     public static List<Integer> gpuSizes = new ArrayList<>();
-    
+
     /** GPU work group counts */
     public static List<Integer> gpuCounts = new ArrayList<>();
-    
+
     /** Minting account identifier */
     public static long accountId;
-    
+
     /** Minting currency */
     public static Currency currency;
-    
+
     /** Minting target */
     public static MintingTarget mintingTarget;
-    
+
     /** Minting units expressed as a whole number with an implied decimal point */
     public static long mintingUnits;
-    
+
     /** GPU devices */
     public static List<GpuDevice> gpuDeviceList = new ArrayList<>();
 
@@ -225,9 +234,9 @@ public class Main {
             }
             log.info(String.format("%s Version %s", applicationName, applicationVersion));
             log.info(String.format("Application data path: %s", dataPath));
-            log.info(String.format("Using Nxt node at %s:%d", nxtHost, apiPort));
-            log.info(String.format("Minting %,f units of %s for account %s: %d CPU threads, %d GPU intensity", 
-                                   currencyUnits, currencyCode, Utils.getAccountRsId(accountId), 
+            log.info(String.format("Using Nxt node at %s://%s:%d", (useSSL ? "https" : "http"), nxtHost, apiPort));
+            log.info(String.format("Minting %,f units of %s for account %s: %d CPU threads, %d GPU intensity",
+                                   currencyUnits, currencyCode, Utils.getAccountRsId(accountId),
                                    cpuThreads, gpuIntensity));
             //
             // Open the application lock file
@@ -251,7 +260,7 @@ public class Main {
             //
             // Initialize the NxtCore library
             //
-            Nxt.init(nxtHost, apiPort);
+            Nxt.init(nxtHost, apiPort, useSSL, allowNameMismatch, acceptAnyCertificate);
             //
             // Ensure the account is funded
             //
@@ -326,7 +335,7 @@ public class Main {
                 log.error("Exception during program initialization", exc);
         }
     }
-    
+
     /**
      * Create and show our application GUI
      *
@@ -424,6 +433,15 @@ public class Main {
                         case "apiport":
                             apiPort = Integer.valueOf(value);
                             break;
+                        case "usessl":
+                            useSSL = Boolean.valueOf(value);
+                            break;
+                        case "allownamemismatch":
+                            allowNameMismatch = Boolean.valueOf(value);
+                            break;
+                        case "acceptanycertificate":
+                            acceptAnyCertificate = Boolean.valueOf(value);
+                            break;
                         case "secretphrase":
                             secretPhrase = value;
                             break;
@@ -472,10 +490,10 @@ public class Main {
             }
         }
     }
-    
+
     /**
      * Build a list of available GPU devices
-     * 
+     *
      * @throws      CLException         OpenCL error occurred
      */
     private static void buildGpuList() throws CLException {

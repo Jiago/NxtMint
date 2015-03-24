@@ -1,6 +1,10 @@
 NxtMint Change Log
 ==================
 
+Version 1.7.0
+  - SSL support
+  
+  
 Version 1.6.0
   - Native CPU support for SHA3-256
   - GPU support for SHA3-256
