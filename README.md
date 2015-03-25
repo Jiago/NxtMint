@@ -76,7 +76,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
   - allowNameMismatch=boolean       
     Specify 'true' to allow an HTTPS connection or 'false' to reject an HTTPS connection if the host name does not match the SSL certificate name.  The default is 'false'.
     
-  - acceptAnyCertificate=boolean
+  - acceptAnyCertificate=boolean	
     Specify 'true' to accept the server certificate without verifying the trust path or 'false' to verify the certificate trust path before accepting the connection.  The default is 'false'.
     
   - secretPhrase=phrase     
@@ -94,7 +94,7 @@ The following configuration options can be specified in NxtMint.conf.  This file
   - gpuIntensity=count    
     Specifies the total number of GPU work items multiplied by 1024.  A GPU will not be used if gpuIntensity is 0.  gpuIntensity is an integer between 0 and 1,048,576 and defaults to 0.  Your graphics card must support OpenCL in order to use the GPU.  You will need to try different values to determine an acceptable hash rate.  Specifying too large a value can result in performance degradation and GPU memory errors.  Start with an initial value of 10 and raise or lower needed.  Set gpuDevice=0,n,0 where n is the number of cores per compute unit for your adapter.      
     
-  - gpuDevice=index,wsize,gcount
+  - gpuDevice=index,wsize,gcount	
     Specifies the GPU device number (0, 1, 2, ...), the work group size and the work group count.  The first GPU device will be used if this parameter is omitted.  This parameter can be repeated to use multiple GPU devices.  The GPU devices that are available are listed when NxtMint starts if a non-zero value for gpuIntensity is specified.  
 
     The work group size specifies the number of work items per work group and defaults to 256.  Performance can sometimes be improved by setting the work group size to the number of cores in a compute unit.  You can determine this value by dividing the number of cores on the card by the number of compute units.  In addition, each card has a preferred work item multiple.  For example, if the preferred multiple is 32, work item sizes that are a multiple of 32 will often give better performance (unless there are resource limitations or memory contention).    
