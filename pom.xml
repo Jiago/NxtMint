@@ -9,8 +9,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <NxtCore.version>1.3.0</NxtCore.version>
-        <slf4j.version>1.7.7</slf4j.version>
+        <NxtCore.version>2.0.0</NxtCore.version>
+        <slf4j.version>1.7.12</slf4j.version>
         <bcprov.version>1.52</bcprov.version>
         <jocl.version>0.1.9</jocl.version>
     </properties>
