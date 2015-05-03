@@ -26,19 +26,6 @@
             <comments>A business-friendly OSS license</comments>
         </license>
     </licenses>
-	<developers>
-		<developer>
-			<id>ScripterRon</id>
-			<name>Ronald Hoffman</name>
-			<email>Ronald.Hoffman6@gmail.com</email>
-		</developer>
-	</developers>
-	<scm>
-		<connection>scm:git:https://github.com:ScripterRon/NxtMint.git</connection>
-		<developerConnection>scm:git:https://github.com:ScripterRon/NxtMint.git</developerConnection>
-		<url>https://github.com/ScripterRon/NxtMint</url>
-		<tag>HEAD</tag>
-	</scm>
     <build>
         <!-- Filter resources -->
         <resources>
@@ -107,24 +94,6 @@
                         <nonFilteredFileExtension>cl</nonFilteredFileExtension>
                     </nonFilteredFileExtensions>
                 </configuration>
-            </plugin>
-            <!-- Documentation -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-javadoc-plugin</artifactId>
-                <version>2.9.1</version>
-            </plugin>
-            <!-- Deploy -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-deploy-plugin</artifactId>
-                <version>2.8.1</version>
-            </plugin>
-            <!-- Source -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-source-plugin</artifactId>
-                <version>2.2.1</version>
             </plugin>
         </plugins>
     </build>
