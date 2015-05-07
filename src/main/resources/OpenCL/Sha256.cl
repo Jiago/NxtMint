@@ -40,7 +40,7 @@ __constant uint k[] = {
  */
 typedef struct This_s {
     __global uchar  *input;             /* Input data */
-    __global uint   *target;            /* Hash target */
+    __global uchar  *target;            /* Hash target */
     __global uchar  *solution;          /* Solution nonce */
              int    passId;             /* Pass identifier */
 } This;
@@ -58,19 +58,19 @@ typedef struct This_s {
  * Do the hash
  */
 static void hash(This *this) {
-    uint A = 1779033703;
-    uint B = -1150833019;
-    uint C = 1013904242;
-    uint D = -1521486534;
-    uint E = 1359893119;
-    uint F = -1694144372;
-    uint G = 528734635;
-    uint H = 1541459225;
+    uint A = 0x6A09E667;
+    uint B = 0xBB67AE85;
+    uint C = 0x3C6EF372;
+    uint D = 0xA54FF53A;
+    uint E = 0x510E527F;
+    uint F = 0x9B05688C;
+    uint G = 0x1F83D9AB;
+    uint H = 0x5BE0CD19;
     uint w0=0, w1=0, w2=0, w3=0, w4=0, w5=0, w6=0, w7=0;
     uint w8=0, w9=0, w10=0, w11=0, w12=0, w13=0, w14=0, w15=0, w16=0;
     uint T, T2;
     //
-    // Transform the data (the SHA-256 algorithm is big-endian, so we reverse the bytes)
+    // Transform the data (the SHA-256 algorithm is big-endian)
     //
     // We will modify the nonce (first 8 bytes of the input data) for each execution instance
     // based on the global ID and the pass ID
@@ -109,35 +109,41 @@ static void hash(This *this) {
     //
     // Finish the digest
     //
-    A += 1779033703;
-    B += -1150833019;
-    C += 1013904242;
-    D += -1521486534;
-    E += 1359893119;
-    F += -1694144372;
-    G += 528734635;
-    H += 1541459225;
+    A += 0x6A09E667;
+    B += 0xBB67AE85;
+    C += 0x3C6EF372;
+    D += 0xA54FF53A;
+    E += 0x510E527F;
+    F += 0x9B05688C;
+    G += 0x1F83D9AB;
+    H += 0x5BE0CD19;
     //
-    // Save the digest if it satisfies the target.  Note that the digest and the target
-    // are treated as 32-byte unsigned numbers in little-endian format.
+    // Save the digest if it satisfies the target.  Note that the digest and the target are
+    // treated as 32-byte unsigned numbers in little-endian format when performing the comparison.
     //
     char keepChecking = 1;
     char isSolved = 1;
     uint check;
-    int i;
+    uchar bytes[4];
+    int i, j;
     for (i=7; i>=0 && keepChecking!=0; i--) {
-        check = (i==0 ? A : i==1 ? B : i==2 ? C : i==3 ? D :
-                 i==4 ? E : i==5 ? F : i==6 ? G : H);
-        if (check < this->target[i]) {
-            keepChecking = 0;
-        } else if (check > this->target[i]) {
-            isSolved = 0;
-            keepChecking = 0;
+        check = (i==0 ? A : i==1 ? B : i==2 ? C : i==3 ? D : i==4 ? E : i==5 ? F : i==6 ? G : H);
+        bytes[3] = (uchar)(check&0xff);
+        bytes[2] = (uchar)((check>>8)&0xff);
+        bytes[1] = (uchar)((check>>16)&0xff);
+        bytes[0] = (uchar)((check>>24)&0xff);
+        for (j=3; j>=0 && keepChecking!=0; j--) {
+            if (bytes[j] < this->target[i*4+j]) {
+                keepChecking = 0;
+            } else if (bytes[j] > this->target[i*4+j]) {
+                isSolved = 0;
+                keepChecking = 0;
+            }
         }
     }
     if (isSolved!=0) {
       //
-      // Save the nonce (the SHA-256 algorithm is big-endian, so we reverse the bytes)
+      // Save the nonce (the SHA-256 algorithm is big-endian)
       //
       this->solution[0] = (uchar)(input[0]>>24);
       this->solution[1] = (uchar)(input[0]>>16);
@@ -161,7 +167,7 @@ __kernel void run(__global uchar  *kernelData,
     This thisStruct;
     This* this=&thisStruct;
     this->input = kernelData+0;
-    this->target = (__global uint *)(kernelData+64);
+    this->target = kernelData+64;
     this->solution = kernelData+96;
     this->passId = passId;
     //
