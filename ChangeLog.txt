@@ -1,6 +1,10 @@
 NxtMint Change Log
 ==================
 
+Version 1.7.1
+  - Incorrect target check for GPU SHA-256 support
+
+
 Version 1.7.0
   - SSL support
   
